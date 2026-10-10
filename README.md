@@ -1,4 +1,4 @@
-# japan-basemap-pmtiles
+# japan-basemap-tile-pipeline
 
 日本のベクトルタイル（PMTiles）を GitHub Actions で週1回更新し、Cloudflare R2 から配信する。
 
