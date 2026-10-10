@@ -5,6 +5,7 @@
 #
 # 配信元の ETag が前回と同じなら何もしない（全国更新は 2〜4 か月ごと）。
 set -euo pipefail
+# shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
 
 SRC_URL=https://cyberjapandata.gsi.go.jp/xyz/optimal_bvmap-v1/optimal_bvmap-v1.pmtiles

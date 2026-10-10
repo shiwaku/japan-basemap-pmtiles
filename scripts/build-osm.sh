@@ -5,6 +5,7 @@
 #
 # 元データ（Last-Modified）と Planetiler のバージョンが前回と同じなら何もしない。
 set -euo pipefail
+# shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
 
 PLANETILER_VERSION=0.10.2
