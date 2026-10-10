@@ -1,0 +1,93 @@
+name: Mapterhorn（日本域の標高タイル）をミラー
+
+on:
+  schedule:
+    - cron: "0 18 * * 3" # 毎週木曜 03:00 JST
+  workflow_dispatch:
+    inputs:
+      force:
+        description: md5 が同じでも全ファイルを取り直す
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  WORK_DIR: /mnt/work
+  FORCE: ${{ inputs.force || 'false' }}
+  R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+  CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+
+jobs:
+  # 上流の md5 と R2 の写しを比べ、取り直すファイルを決める
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: prod
+    outputs:
+      files: ${{ steps.plan.outputs.files }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 作業領域を用意
+        run: |
+          sudo mkdir -p "$WORK_DIR"
+          sudo chown "$USER" "$WORK_DIR"
+      - name: 差分を調べる
+        id: plan
+        run: scripts/mapterhorn-plan.sh
+
+  # 1 ファイル 1 ジョブ。最大 66GB をストリームで写すので、1 ジョブの上限（6 時間）に収まるよう分ける
+  mirror:
+    needs: plan
+    if: needs.plan.outputs.files != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    environment: prod
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        file: ${{ fromJSON(needs.plan.outputs.files) }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      FILE: ${{ matrix.file }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 作業領域を用意
+        run: |
+          sudo mkdir -p "$WORK_DIR"
+          sudo chown "$USER" "$WORK_DIR"
+      - name: ミラー
+        id: mirror
+        run: scripts/mirror-mapterhorn.sh "$FILE"
+      - name: サマリ
+        if: always()
+        run: echo "- \`$FILE\`: ${{ steps.mirror.outcome }}（${{ steps.mirror.outputs.size || '-' }} bytes）" >>"$GITHUB_STEP_SUMMARY"
+
+  # tiles.shi-works.com/mapterhorn/... はファイル名と URL が対応しないので、最後にまとめて消す
+  purge:
+    needs: [plan, mirror]
+    if: ${{ !cancelled() && needs.plan.outputs.files != '[]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: prod
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: ZXY のキャッシュをパージ
+        run: |
+          # lib.sh は R2_ACCOUNT_ID を要求するだけで、ここでは R2 に触らない
+          # shellcheck disable=SC1091
+          source scripts/lib.sh
+          purge_prefixes "tiles.shi-works.com/mapterhorn"

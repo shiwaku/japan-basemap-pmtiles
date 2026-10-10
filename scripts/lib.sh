@@ -84,16 +84,19 @@ r2_upload() {
 purge_cache() {
   local key=$1 name=${1#pmtiles/}
   name=${name%.pmtiles}
+  purge_prefixes "shi-works.com/$key" "tiles.shi-works.com/$name"
+}
+
+# URL の前方一致でキャッシュを消す（スキーム無し、ホスト名から）
+purge_prefixes() {
   if [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ZONE_ID:-}" ]]; then
     log "CLOUDFLARE_API_TOKEN / CLOUDFLARE_ZONE_ID が無いのでパージを省略"
     return
   fi
   local body
-  body=$(printf '{"prefixes":["shi-works.com/%s","tiles.shi-works.com/%s"]}' "$key" "$name")
+  body=$(jq -cn '{prefixes: $ARGS.positional}' --args "$@")
   log "キャッシュをパージ: $body"
-  curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
-    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' \
-    --data "$body" | grep -q '"success":true' || { log "パージ失敗"; exit 1; }
+  curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache"     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json'     --data "$body" | grep -q '"success":true' || { log "パージ失敗"; exit 1; }
 }
 
 # 前回より極端に小さい成果物は壊れているとみなしてアップロードしない
