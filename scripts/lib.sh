@@ -96,7 +96,9 @@ purge_prefixes() {
   local body
   body=$(jq -cn '{prefixes: $ARGS.positional}' --args "$@")
   log "キャッシュをパージ: $body"
-  curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache"     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json'     --data "$body" | grep -q '"success":true' || { log "パージ失敗"; exit 1; }
+  curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' \
+    --data "$body" | grep -q '"success":true' || { log "パージ失敗"; exit 1; }
 }
 
 # 前回より極端に小さい成果物は壊れているとみなしてアップロードしない
