@@ -2,3 +2,5 @@
 *.pmtiles
 *.osm.pbf
 .env
+/style/node_modules/
+/style/dist/

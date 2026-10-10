@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenMapTiles Japan</title>
+    <style>
+      html, body, #map { margin: 0; height: 100%; }
+      #info { position: absolute; top: 8px; left: 8px; z-index: 1; padding: 6px 10px; background: rgba(255,255,255,.9);
+        font: 13px/1.5 sans-serif; border-radius: 4px; }
+      #info a { margin-right: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      <a href="#13/37.242/131.866">竹島</a>
+      <a href="#10/44.05/146.0">国後島</a>
+      <a href="#10/45.1/147.8">択捉島</a>
+      <a href="#11/43.6/146.0">歯舞・色丹</a>
+      <a href="#7/44.2/146.5">北方領土</a>
+      <a href="#14/35.681/139.767">東京</a>
+      <span id="src"></span>
+    </div>
+    <div id="map"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

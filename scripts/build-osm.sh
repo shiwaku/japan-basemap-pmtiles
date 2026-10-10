@@ -30,6 +30,32 @@ KEY="${KEY_PREFIX}pmtiles/osm/openmaptiles-japan.pmtiles"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
+# 補う地域の名前（地名・道路名・店名など）を消す。北方領土はロシア語・竹島は韓国語や韓国の行政名になっており、
+# name:ja も日本の地名とは限らないため。地名はスタイルで国土地理院 最適化ベクトルタイルの注記を重ねる（README「領土の表示」）。
+#   strip_names <入力 pbf> <出力 pbf>
+# OPL（1 行 1 オブジェクト、タグは "T" で始まる欄にカンマ区切り）にして名前系のキーだけ落とす
+strip_names() {
+  osmium cat -f opl "$1" | awk '
+    {
+      for (i = 1; i <= NF; i++) {
+        if (substr($i, 1, 1) != "T") continue
+        n = split(substr($i, 2), tags, ",")
+        kept = ""
+        for (j = 1; j <= n; j++) {
+          key = tags[j]
+          sub(/=.*/, "", key)
+          if (key ~ /^(name|alt_name|old_name|official_name|short_name|int_name|loc_name|reg_name|nat_name|sorting_name)(:|$)/) continue
+          kept = kept (kept == "" ? "" : ",") tags[j]
+        }
+        $i = "T" kept
+      }
+      print
+    }' | osmium cat -F opl - --overwrite -o "$2"
+  local left
+  left=$(osmium cat -f opl "$2" | grep -cE '(^| )T([^ ]*,)?(name|alt_name|old_name|official_name)(:[^=,]*)?=' || true)
+  ((left == 0)) || { log "名前が消えていない: $left 件"; exit 1; }
+}
+
 last_modified() { curl -fsSIL "$1" | tr -d '\r' | awk -F': ' 'tolower($1)=="last-modified"{v=$2} END{print v}'; }
 
 read -ra extras <<<"$EXTRA_SOURCES"
@@ -68,11 +94,14 @@ if ((${#extras[@]})); then
     curl -fsSL --retry 3 -o "data/sources/extra-$i.osm.pbf" "$url"
     # smart: bbox にかかる道・マルチポリゴンは bbox の外にはみ出す部分も完全な形で残す
     osmium extract --strategy=smart -b "$bbox" --overwrite \
-      -o "data/sources/extra-$i.clip.osm.pbf" "data/sources/extra-$i.osm.pbf"
+      -o "data/sources/extra-$i.raw.osm.pbf" "data/sources/extra-$i.osm.pbf"
     rm "data/sources/extra-$i.osm.pbf"
+    strip_names "data/sources/extra-$i.raw.osm.pbf" "data/sources/extra-$i.clip.osm.pbf"
+    rm "data/sources/extra-$i.raw.osm.pbf"
     parts+=("data/sources/extra-$i.clip.osm.pbf")
   done
-  # 両方の抽出に入っている同じ版のオブジェクト（境界線など）は 1 つにまとまる
+  # 両方の抽出に入っている同じ版のオブジェクト（境界線など）は 1 つにまとまる。
+  # 同じ版なら先に渡した japan 側（名前を消していない方）が残る
   osmium merge --overwrite -o data/sources/merged.osm.pbf "${parts[@]}"
   osmium fileinfo -e data/sources/merged.osm.pbf | grep -E 'Number of (nodes|ways|relations):' >&2
   osm_input=data/sources/merged.osm.pbf
