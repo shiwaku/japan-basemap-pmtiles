@@ -1,4 +1,4 @@
-# shellcheck shell=bash
+# shellcheck shell=bash disable=SC2034
 # Mapterhorn ミラーの設定（mapterhorn-plan.sh / mirror-mapterhorn.sh から source する）
 
 MAPTERHORN_BASE=https://download.mapterhorn.com
