@@ -1,4 +1,4 @@
-# GitHub Actions のランナー（ubuntu-24.04 + Java 21 + aws cli + jq）と同じ道具をそろえたローカル実行用イメージ。
+# GitHub Actions のランナー（ubuntu-24.04 + Java 21 + aws cli + jq + osmium）と同じ道具をそろえたローカル実行用イメージ。
 #   docker compose build
 #   docker compose run --rm pipeline scripts/build-osm.sh
 FROM ubuntu:24.04
@@ -9,7 +9,7 @@ ARG PMTILES_SHA256=3ed7dbf4ec2e6dfe5e25b6f70d1ffc932729f93c86db353bf514dd71010a3
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates curl jq unzip openjdk-21-jre-headless \
+      ca-certificates curl jq unzip openjdk-21-jre-headless osmium-tool \
  && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL -o /tmp/awscli.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" \

@@ -46,6 +46,13 @@ jobs:
           df -h / /mnt
           free -g
 
+      # 北方領土・竹島を隣国の抽出から切り出して結合するのに使う
+      - name: osmium を入れる
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends osmium-tool
+          osmium --version
+
       - name: 生成・アップロード
         id: build
         run: scripts/build-osm.sh
