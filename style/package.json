@@ -1,0 +1,22 @@
+{
+  "name": "japan-basemap-style",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "build": "tsx build-style.ts",
+    "check": "tsx build-style.ts --check",
+    "validate": "gl-style-validate openmaptiles-japan.json",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@maplibre/maplibre-gl-style-spec": "^26.4.4",
+    "@types/node": "^26.6.4",
+    "maplibre-gl": "^6.11.2",
+    "pmtiles": "^4.5.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2"
+  }
+}

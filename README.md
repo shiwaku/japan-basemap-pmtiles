@@ -39,6 +39,7 @@ Mapterhorn は `tiles.mapterhorn.com` と同じ使い方になる（ズームに
 
 OpenMapTiles スキーマなので、OSM Bright・Positron・Dark Matter などの OpenMapTiles 系スタイルの
 `sources.openmaptiles` をこの URL に差し替えれば使える（glyphs・sprite は別途用意する）。
+北方領土・竹島の地名まで日本の地名で出すには、このリポジトリの [スタイル](#スタイルstyle) を使う。
 
 ## 領土の表示（北方領土・竹島）
 
@@ -47,15 +48,37 @@ OSM は実効支配に基づいて国を分ける（On the Ground 原則）。Ge
 その範囲だけを切り出して結合している（`scripts/build-osm.sh` の `EXTRA_SOURCES`）。
 これで道路・建物・地名などの地物はタイルに入る。
 
-ただし**国境線・国名・地名の値は OSM のまま**（北方領土はロシア、竹島は韓国の扱い）。
-日本の公式見解で表示する地図では、スタイル側で次のように扱う（2026-10 の北海道＋北方領土の試験ビルドで確認）。
+**地名は国土地理院の注記を使う。** OSM の名前は、北方領土はロシア語、竹島は韓国語や韓国の行政名（「독도리」／`name:ja`「独島里」）で、
+`name:ja` も日本の地名とは限らない（例: 国後島の中心集落が「古釜布」ではなく「ユジノ・クリリスク」）。そこで
 
-- **国境線**: 根室海峡などの日露の線は `admin_level=2`・`maritime=1`・`adm0_l=RUS`／`adm0_r=JPN`・**`disputed=0`**
-  で出る（係争扱いになっていない）。`disputed` では絞れないので、日本周辺では `boundary` の `admin_level=2` を表示せず、
-  国境・行政界は国土地理院 最適化ベクトルタイル（北方領土・竹島を日本として収録）を重ねて描く
-- **地名**: `name` は現地語（北方領土はロシア語、竹島は韓国語）。`name:ja` も旧来の日本名とは限らない
-  （例: 国後島の中心集落は「古釜布」ではなく「ユジノ・クリリスク」、竹島の地物は韓国名のカタカナ表記）。
-  北方領土・竹島の地名は OSM のラベルを出さず、国土地理院 最適化ベクトルタイルの注記を使う
+1. **タイル生成時**に、補った地域の名前（`name`・`name:*`・`alt_name` など。地名・道路名・店名）を消す（`build-osm.sh` の `strip_names`）。
+   どの OpenMapTiles 系スタイルで表示しても、ロシア語・韓国語の地名は出ない
+2. **スタイル**（`style/openmaptiles-japan.json`）で、北方領土・竹島の範囲（`style/territories.json`）にだけ
+   国土地理院 最適化ベクトルタイルの注記（`Anno` レイヤー）を重ねる。範囲は島の海岸線から 10km、北方領土は北海道の海岸線との中間線で切ってある
+
+**国境線は未対応（OSM のまま）。** 根室海峡などの日露の線は `admin_level=2`・`maritime=1`・`adm0_l=RUS`／`adm0_r=JPN`・
+**`disputed=0`**（係争扱いになっていない）で出るので `disputed` では消せない。日本周辺では OSM の `admin_level=2` を出さず、
+国土地理院 最適化ベクトルタイルの境界を重ねる予定（issue #3）。
+
+## スタイル（style/）
+
+OpenFreeMap の [Bright](https://openfreemap.org/)（OSM Bright 系）をもとに、このリポジトリのタイル向けに直したもの。
+フォント・アイコンは OpenFreeMap のものを参照する。
+
+- タイルの参照先を R2 の PMTiles（`pmtiles://`）にする。表示側で [pmtiles](https://github.com/protomaps/PMTiles) のプロトコルを登録する
+- 地名・道路名は日本語名（`name:ja`）→ `name` の順
+- 北方領土・竹島に国土地理院の注記を重ねる（上記）
+
+`vendor/openfreemap-bright.json` を `build-style.ts` で書き換えて `openmaptiles-japan.json` を作る。手で編集しない。
+
+```bash
+cd style
+pnpm install
+pnpm build        # openmaptiles-japan.json を作り直す（CI は pnpm check で差分が無いことを確かめる）
+pnpm dev          # 確認用ビューア http://localhost:5173/ 。?local を付けると ../work/openmaptiles-japan.pmtiles を表示
+```
+
+`territories.json` は `tools/make_territories.py`（shapely）で OSM の海岸線から作る（手順はスクリプトの先頭）。
 
 ## 仕組み
 
@@ -168,6 +191,8 @@ docker compose run --rm -e PBF_URL=https://download.geofabrik.de/asia/japan/shik
 - OSM 由来のタイル: © OpenStreetMap contributors（[ODbL](https://www.openstreetmap.org/copyright)）。
   スキーマは © OpenMapTiles（[CC-BY 4.0](https://github.com/openmaptiles/openmaptiles/blob/master/LICENSE.md)）。
   地図には「© OpenMapTiles © OpenStreetMap contributors」を表示すること。
+- スタイル（`style/`）: OpenFreeMap の Bright（[openfreemap-styles](https://github.com/hyperknot/openfreemap-styles)、MIT）をもとにしている。
+  元は OpenMapTiles の OSM Bright（コードは BSD-3-Clause、デザインは CC-BY 4.0）。フォントは Noto Sans（OFL 1.1）、アイコンは Maki（CC0）。
 - 国土地理院 最適化ベクトルタイル: [国土地理院コンテンツ利用規約](https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html)に従う。
   「国土地理院最適化ベクトルタイル」と出典を表示すること。試験公開のため、仕様・URL は変わることがある
   （[gsi-cyberjapan/optimal_bvmap](https://github.com/gsi-cyberjapan/optimal_bvmap)）。
