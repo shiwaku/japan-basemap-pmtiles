@@ -1,0 +1,57 @@
+name: 国土地理院 最適化ベクトルタイルをミラー
+
+on:
+  schedule:
+    - cron: "0 18 * * 2" # 毎週水曜 03:00 JST
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 配信元が前回と同じでも取り直す／縮小ガードを無視する
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    environment: prod
+    env:
+      WORK_DIR: /mnt/work
+      FORCE: ${{ inputs.force || 'false' }}
+      R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # 約 17GB を一度ディスクに落とすので /mnt で作業する
+      - name: 作業領域を用意
+        run: |
+          sudo mkdir -p "$WORK_DIR"
+          sudo chown "$USER" "$WORK_DIR"
+          df -h / /mnt
+
+      - name: ミラー
+        id: mirror
+        run: scripts/mirror-gsi.sh
+
+      - name: サマリ
+        if: always()
+        run: |
+          {
+            echo "### 国土地理院 最適化ベクトルタイル"
+            echo "- 更新: ${{ steps.mirror.outputs.updated || '失敗' }}"
+            echo "- サイズ: ${{ steps.mirror.outputs.size || '-' }} bytes"
+            echo "- https://shi-works.com/pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles"
+            echo "- https://tiles.shi-works.com/gsi/optimal_bvmap/optimal_bvmap-v1.json"
+            if [ -f "$WORK_DIR/show.txt" ]; then echo '```'; cat "$WORK_DIR/show.txt"; echo '```'; fi
+          } >>"$GITHUB_STEP_SUMMARY"

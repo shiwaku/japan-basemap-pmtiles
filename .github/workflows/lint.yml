@@ -1,0 +1,33 @@
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: shellcheck
+        run: shellcheck -x scripts/*.sh
+
+      - name: 構文チェック（bash -n）
+        run: for f in scripts/*.sh; do bash -n "$f"; done
+
+      # ワークフロー内の run: も shellcheck にかかる
+      - name: actionlint
+        run: |
+          tgz="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$tgz" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$tgz"
+          echo "$ACTIONLINT_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" actionlint
+          ./actionlint -color

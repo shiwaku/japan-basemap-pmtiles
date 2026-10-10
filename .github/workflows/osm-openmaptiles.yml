@@ -1,0 +1,63 @@
+name: OSM（OpenMapTiles）を更新
+
+on:
+  schedule:
+    - cron: "0 18 * * 0" # 毎週月曜 03:00 JST
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 元データが前回と同じでも再生成する／縮小ガードを無視する
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    environment: prod
+    env:
+      WORK_DIR: /mnt/work
+      FORCE: ${{ inputs.force || 'false' }}
+      R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # / は空きが少ないので、ランナーの一時ディスク /mnt で作業する
+      - name: 作業領域を用意
+        run: |
+          sudo mkdir -p "$WORK_DIR"
+          sudo chown "$USER" "$WORK_DIR"
+          df -h / /mnt
+          free -g
+
+      - name: 生成・アップロード
+        id: build
+        run: scripts/build-osm.sh
+
+      - name: サマリ
+        if: always()
+        run: |
+          {
+            echo "### OSM（OpenMapTiles）"
+            echo "- 更新: ${{ steps.build.outputs.updated || '失敗' }}"
+            echo "- サイズ: ${{ steps.build.outputs.size || '-' }} bytes"
+            echo "- https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles"
+            echo "- https://tiles.shi-works.com/osm/openmaptiles-japan.json"
+            if [ -f "$WORK_DIR/show.txt" ]; then echo '```'; cat "$WORK_DIR/show.txt"; echo '```'; fi
+          } >>"$GITHUB_STEP_SUMMARY"
