@@ -24,7 +24,7 @@ https://download.geofabrik.de/russia/far-eastern-fed-district-latest.osm.pbf|145
 https://download.geofabrik.de/asia/south-korea-latest.osm.pbf|131.8,37.2,131.95,37.3}"
 # タイルを作る範囲。結合した pbf のヘッダには範囲が残らないので明示する
 : "${OSM_BOUNDS:=122.9,20.4,154.0,45.6}"
-KEY=pmtiles/osm/openmaptiles-japan.pmtiles
+KEY="${KEY_PREFIX}pmtiles/osm/openmaptiles-japan.pmtiles"
 : "${JAVA_XMX:=10g}"
 
 mkdir -p "$WORK_DIR"

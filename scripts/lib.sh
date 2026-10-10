@@ -7,17 +7,26 @@
 #   WORK_DIR                                                  … 作業ディレクトリ（大容量）
 #   DRY_RUN=true                                              … R2 に書かず、パージもしない（ローカル試験用）。
 #                                                               R2 の認証情報が無ければ R2 も読まない（前回分なしとして扱う）
+#   S3_ENDPOINT                                               … R2 の代わりに使う S3 互換 API（ローカル試験の versitygw）。
+#                                                               指定するとパージしない
+#   KEY_PREFIX                                                … 書き込むキーの接頭辞。R2 での検証は _test/ にして本番キーに触れない。
+#                                                               指定するとパージしない
 
 set -euo pipefail
 
 : "${R2_BUCKET:=shi-works}"
 : "${DRY_RUN:=false}"
-if [[ "$DRY_RUN" == "true" ]]; then
-  : "${R2_ACCOUNT_ID:=dry-run}"
+: "${KEY_PREFIX:=}"
+if [[ -n "${S3_ENDPOINT:-}" ]]; then
+  R2_ENDPOINT=$S3_ENDPOINT
 else
-  : "${R2_ACCOUNT_ID:?R2_ACCOUNT_ID が未設定}"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    : "${R2_ACCOUNT_ID:=dry-run}"
+  else
+    : "${R2_ACCOUNT_ID:?R2_ACCOUNT_ID が未設定}"
+  fi
+  R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 fi
-R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 export AWS_DEFAULT_REGION=auto
 # AWS CLI 2.23 以降の既定（CRC 整合性チェック）は R2 と噛み合わないことがあるので、必要時のみにする
@@ -109,6 +118,10 @@ purge_cache() {
 purge_prefixes() {
   if is_dry_run; then
     log "DRY_RUN: パージしない（$*）"
+    return
+  fi
+  if [[ -n "${S3_ENDPOINT:-}" || -n "$KEY_PREFIX" ]]; then
+    log "試験（S3_ENDPOINT / KEY_PREFIX 指定）なのでパージしない（$*）"
     return
   fi
   if [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ZONE_ID:-}" ]]; then
