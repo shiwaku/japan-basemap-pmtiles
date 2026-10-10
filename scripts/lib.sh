@@ -5,11 +5,18 @@
 #   R2_ACCOUNT_ID, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  … R2（S3 互換 API）
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID                 … キャッシュのパージ
 #   WORK_DIR                                                  … 作業ディレクトリ（大容量）
+#   DRY_RUN=true                                              … R2 に書かず、パージもしない（ローカル試験用）。
+#                                                               R2 の認証情報が無ければ R2 も読まない（前回分なしとして扱う）
 
 set -euo pipefail
 
 : "${R2_BUCKET:=shi-works}"
-: "${R2_ACCOUNT_ID:?R2_ACCOUNT_ID が未設定}"
+: "${DRY_RUN:=false}"
+if [[ "$DRY_RUN" == "true" ]]; then
+  : "${R2_ACCOUNT_ID:=dry-run}"
+else
+  : "${R2_ACCOUNT_ID:?R2_ACCOUNT_ID が未設定}"
+fi
 R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 export AWS_DEFAULT_REGION=auto
@@ -46,15 +53,22 @@ install_pmtiles() {
   export PATH="$WORK_DIR/bin:$PATH"
 }
 
+# R2 を読めるか（認証情報があるか）
+r2_readable() { [[ -n "${AWS_ACCESS_KEY_ID:-}" ]]; }
+
+is_dry_run() { [[ "$DRY_RUN" == "true" ]]; }
+
 # R2 オブジェクトのユーザーメタデータ（x-amz-meta-*）を1つ読む。オブジェクトが無ければ空文字
 r2_meta() {
   local key=$1 name=$2
+  r2_readable || return 0
   aws s3api head-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" --key "$key" \
     --query "Metadata.\"$name\"" --output text 2>/dev/null | grep -v '^None$' || true
 }
 
 r2_size() {
   local key=$1
+  r2_readable || { echo 0; return; }
   aws s3api head-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" --key "$key" \
     --query ContentLength --output text 2>/dev/null || echo 0
 }
@@ -64,6 +78,10 @@ r2_size() {
 #   r2_upload <file> <key> <metadata JSON>（値にカンマを含む Last-Modified を入れるため JSON で渡す）
 r2_upload() {
   local file=$1 key=$2 meta=$3
+  if is_dry_run; then
+    log "DRY_RUN: アップロードしない（$file → $key、$(stat -c %s "$file") bytes、metadata $meta）"
+    return
+  fi
   aws configure set default.s3.multipart_chunksize 64MB
   aws configure set default.s3.max_concurrent_requests 16
   log "アップロード: $file → s3://$R2_BUCKET/$key"
@@ -89,6 +107,10 @@ purge_cache() {
 
 # URL の前方一致でキャッシュを消す（スキーム無し、ホスト名から）
 purge_prefixes() {
+  if is_dry_run; then
+    log "DRY_RUN: パージしない（$*）"
+    return
+  fi
   if [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ZONE_ID:-}" ]]; then
     log "CLOUDFLARE_API_TOKEN / CLOUDFLARE_ZONE_ID が無いのでパージを省略"
     return

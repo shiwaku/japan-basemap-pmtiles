@@ -47,6 +47,16 @@ if [[ "$NAME" == planet-japan ]]; then
   exit 0
 fi
 
+if is_dry_run; then
+  # ローカル試験: ディスクに落として md5 を照合するだけ（wrangler dev のローカル R2 に入れて Worker を試せる）
+  log "DRY_RUN: $src_url → $WORK_DIR/$NAME.pmtiles"
+  curl -fsSL --retry 3 -C - -o "$NAME.pmtiles" "$src_url"
+  got=$(md5sum "$NAME.pmtiles" | cut -d' ' -f1)
+  [[ "$got" == "$md5" ]] || { log "md5 不一致: $got（期待 $md5）"; exit 1; }
+  log "md5 一致。DRY_RUN なので R2 には書かない"
+  exit 0
+fi
+
 STAGING="_staging/$KEY"
 for attempt in 1 2 3; do
   log "転送 $attempt 回目: $src_url → s3://$R2_BUCKET/$STAGING"

@@ -2,6 +2,7 @@
 # Geofabrik の japan-latest.osm.pbf から OpenMapTiles スキーマの PMTiles を Planetiler で生成し、R2 に置く。
 #
 #   WORK_DIR=/mnt/work FORCE=false scripts/build-osm.sh
+#   PLANETILER_TMP … Planetiler の一時ディレクトリ（既定 $WORK_DIR/data/tmp）
 #
 # 元データ（Last-Modified）と Planetiler のバージョンが前回と同じなら何もしない。
 set -euo pipefail
@@ -10,7 +11,8 @@ source "$(dirname "$0")/lib.sh"
 
 PLANETILER_VERSION=0.10.2
 PLANETILER_SHA256=f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d
-PBF_URL=https://download.geofabrik.de/asia/japan-latest.osm.pbf
+# ローカル試験では小さい地域に替えられる（例: asia/japan/shikoku-latest.osm.pbf）。R2 のキーは変わらないので本番では替えない
+: "${PBF_URL:=https://download.geofabrik.de/asia/japan-latest.osm.pbf}"
 KEY=pmtiles/osm/openmaptiles-japan.pmtiles
 : "${JAVA_XMX:=10g}"
 
@@ -46,7 +48,7 @@ java "-Xmx${JAVA_XMX}" -jar planetiler.jar \
   --osm-path=data/sources/japan.osm.pbf \
   --download \
   --download-dir=data/sources \
-  --tmpdir=data/tmp \
+  --tmpdir="${PLANETILER_TMP:-data/tmp}" \
   --output=openmaptiles-japan.pmtiles \
   --nodemap-type=array --storage=mmap
 

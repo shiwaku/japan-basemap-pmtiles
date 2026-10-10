@@ -1,6 +1,7 @@
 # japan-basemap-tile-pipeline
 
-日本のベクトルタイル（PMTiles）を GitHub Actions で週1回更新し、Cloudflare R2 から配信する。
+日本域の背景地図タイル（OSM のベクトルタイル・国土地理院 最適化ベクトルタイル・Mapterhorn の標高タイル）を
+GitHub Actions で週1回更新し、Cloudflare R2 から PMTiles と ZXY で配信する。
 
 | データ | 元 | 生成 | 更新 |
 |---|---|---|---|
