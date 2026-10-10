@@ -8,8 +8,9 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
 
-SRC_URL=https://cyberjapandata.gsi.go.jp/xyz/optimal_bvmap-v1/optimal_bvmap-v1.pmtiles
-KEY=pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles
+# ローカル試験では小さい PMTiles（MVT）に替えられる。R2 のキーは変わらないので本番では替えない
+: "${SRC_URL:=https://cyberjapandata.gsi.go.jp/xyz/optimal_bvmap-v1/optimal_bvmap-v1.pmtiles}"
+KEY="${KEY_PREFIX}pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles"
 
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"

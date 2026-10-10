@@ -121,6 +121,37 @@ gh secret set CLOUDFLARE_API_TOKEN --env prod
 
 `CLOUDFLARE_API_TOKEN` が無い場合はパージを省略する（タイルは Worker のキャッシュ期限 1 日で入れ替わる）。
 
+## ローカルで試す
+
+スクリプトを変えたら、本番の前に **① ローカル → ② R2 の試験領域** の順に通す。Docker（compose）で動く。
+
+```bash
+docker compose build
+
+# ① ローカルの S3 互換サーバー（versitygw）に書く。手順の誤りを見つける
+docker compose run --rm pipeline scripts/test.sh local
+
+# ② 本物の R2 の _test/ 以下に書き、最後に消す（失敗しても消す）。R2 固有の未実装 API を見つける
+#    .env に R2_ACCOUNT_ID・AWS_ACCESS_KEY_ID・AWS_SECRET_ACCESS_KEY を置く（.gitignore 済み）
+docker compose run --rm pipeline scripts/test.sh r2
+
+docker compose down -v   # ① のローカル S3 を消す
+```
+
+どちらも 1〜2 分。国土地理院は小さい試験用 PMTiles（`./work/testsrc` を nginx で配信）を、Mapterhorn は竹島付近の
+`planet-japan` と小さいバンドル 2 本を写し、サイズ・メタデータ・`_staging` の後始末・2 回目のスキップを確かめる。
+`WITH_OSM=true` で OSM（四国、約 10 分）も加わる。パージはしない。
+
+① だけでは足りない。versitygw は R2 が実装していない API（`x-amz-tagging-directive` など）も受け付けるので、
+R2 内コピーの不具合は ② でしか出ない（2026-10 の初回本番で小さいバンドルが失敗したのはこれ）。
+
+タイル生成だけを見るなら、書き込まない `DRY_RUN`（compose の既定）で個別のスクリプトを動かせる。
+
+```bash
+docker compose run --rm -e PBF_URL=https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf \
+  -e OSM_BOUNDS=132.0,32.7,134.8,34.6 -e EXTRA_SOURCES= pipeline scripts/build-osm.sh
+```
+
 ## コストの目安
 
 | 項目 | 目安 |

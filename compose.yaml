@@ -1,7 +1,10 @@
 # ローカル実行。既定は DRY_RUN=true（R2 に書かない・パージしない）で、成果物は ./work に残る。
 #   docker compose run --rm pipeline scripts/build-osm.sh
 #   docker compose run --rm -e PBF_URL=https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf pipeline scripts/build-osm.sh
-# 本番の R2 を読み書きするときは .env に認証情報を置き、DRY_RUN=false を渡す（README「ローカルで試す」）。
+#
+# 書き込みまで含めた試験（README「ローカルで試す」）:
+#   docker compose run --rm pipeline scripts/test.sh local   … ① ローカルの S3 互換サーバー（versitygw）に書く
+#   docker compose run --rm pipeline scripts/test.sh r2      … ② 本物の R2 の _test/ 以下に書いて最後に消す（.env に認証情報）
 services:
   pipeline:
     build: .
@@ -20,6 +23,24 @@ services:
     env_file:
       - path: .env
         required: false
+    depends_on:
+      - s3
+      - testsrc
+
+  # ローカル試験用の S3 互換サーバー（R2 の代わり）。R2 固有の未実装 API は再現しないので、② の R2 試験も必ず行う
+  s3:
+    image: versity/versitygw:v1.7.0
+    command: ["--access", "local", "--secret", "localsecret", "--region", "auto", "--port", ":7070", "posix", "/data"]
+    volumes:
+      # posix バックエンドはメタデータを xattr に保存するので、Windows とのバインドマウントに置かない
+      - s3-data:/data
+
+  # 試験用の配信元（国土地理院の代わりに小さい PMTiles を ETag 付きで返す）。./work/testsrc を公開する
+  testsrc:
+    image: nginx:1.27.5-alpine
+    volumes:
+      - ./work/testsrc:/usr/share/nginx/html:ro
 
 volumes:
   planetiler-tmp:
+  s3-data:
