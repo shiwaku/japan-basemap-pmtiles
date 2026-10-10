@@ -6,6 +6,7 @@
 |---|---|---|---|
 | OSM（OpenMapTiles スキーマ、z0–14） | Geofabrik `asia/japan-latest.osm.pbf` | Planetiler 0.10.2 | 毎週月曜 03:00 JST に生成 |
 | 国土地理院 最適化ベクトルタイル（z4–16） | `optimal_bvmap-v1.pmtiles` | そのままミラー | 毎週水曜 03:00 JST に確認し、配信元の ETag が変わったときだけ取り直す |
+| [Mapterhorn](https://github.com/mapterhorn/mapterhorn) 標高タイル（Terrarium・512px・WebP、z0–16） | `download.mapterhorn.com` | z0–12 は `planet.pmtiles` から日本を切り出し、z13+ は日本域の `6-x-y.pmtiles` をそのままミラー | 毎週木曜 03:00 JST に確認し、md5 が変わったファイルだけ取り直す |
 
 ## 配信 URL
 
@@ -17,6 +18,8 @@ R2 バケット `shi-works` のキー設計（第1階層＝アクセス方法）
 | OSM | `https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles` | `https://tiles.shi-works.com/osm/openmaptiles-japan/{z}/{x}/{y}.pbf` |
 | 国土地理院 | `https://shi-works.com/pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles` | `https://tiles.shi-works.com/gsi/optimal_bvmap/optimal_bvmap-v1/{z}/{x}/{y}.pbf` |
 
+| Mapterhorn | `https://shi-works.com/pmtiles/mapterhorn/planet-japan.pmtiles`（z0–12）＋ `…/mapterhorn/6-{x}-{y}.pmtiles`（z13+） | `https://tiles.shi-works.com/mapterhorn/{z}/{x}/{y}.webp` |
+
 TileJSON は ZXY の `/{z}/{x}/{y}.pbf` を `.json` に替えた URL。
 
 ```js
@@ -24,6 +27,13 @@ TileJSON は ZXY の `/{z}/{x}/{y}.pbf` を `.json` に替えた URL。
 { type: 'vector', url: 'pmtiles://https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles' }
 // または
 { type: 'vector', url: 'https://tiles.shi-works.com/osm/openmaptiles-japan.json' }
+```
+
+Mapterhorn は `tiles.mapterhorn.com` と同じ使い方になる（ズームによるアーカイブの振り分けは Worker が行う。
+[dem2tiles の worker](https://github.com/shiwaku/dem2tiles/tree/main/worker)）。日本の外は 404。
+
+```js
+{ type: 'raster-dem', tiles: ['https://tiles.shi-works.com/mapterhorn/{z}/{x}/{y}.webp'], encoding: 'terrarium', tileSize: 512, maxzoom: 16 }
 ```
 
 OpenMapTiles スキーマなので、OSM Bright・Positron・Dark Matter などの OpenMapTiles 系スタイルの
@@ -58,6 +68,18 @@ aws s3api head-object --bucket shi-works --key pmtiles/osm/openmaptiles-japan.pm
   --endpoint-url https://<account>.r2.cloudflarestorage.com --query Metadata
 ```
 
+### Mapterhorn
+
+上流は z0–12 の `planet.pmtiles`（全球 356GB）と、z13 以上を z6 タイル単位に分けた `6-{x}-{y}.pmtiles` で配られている
+（[distribution](https://github.com/mapterhorn/mapterhorn/tree/main/distribution)）。日本域は 2026-10 時点で
+サブピラミッド 22 本・251.8GB、planet の切り出しは 2.7GB。
+
+- `plan` ジョブが `download_urls.json` の md5 と R2 のメタデータ `source-md5` を比べ、変わったファイルだけ `mirror` に回す
+- サブピラミッドは最大 66GB でランナーのディスクに載らないため、**R2 の一時キー `_staging/…` へストリームで流し込み**、
+  md5・サイズが上流と一致したら本番キーへ R2 内でコピーする。壊れた写しで本番を上書きしない
+- 1 ファイル 1 ジョブ（同時 4 本）。最後に `tiles.shi-works.com/mapterhorn` をパージする
+- ファイル名は上流と同じにしてあるので、後から[公式ミラー](https://github.com/mapterhorn/mapterhorn/blob/main/distribution/mirrors.json)に登録できる
+
 手動実行は Actions の各ワークフローから `Run workflow`（`force` で強制再生成）。
 
 ## セットアップ
@@ -85,7 +107,7 @@ gh secret set CLOUDFLARE_API_TOKEN --env prod
 
 | 項目 | 目安 |
 |---|---|
-| R2 ストレージ | 約 21GB（国土地理院 16.9GB + OSM 数GB）× $0.015/GB・月 ≒ **$0.3/月** |
+| R2 ストレージ | 約 275GB（Mapterhorn 254.5GB + 国土地理院 16.9GB + OSM 数GB）× $0.015/GB・月 ≒ **$4.1/月**（Mapterhorn 分が約 $3.8） |
 | R2 書き込み（Class A） | 1 回のアップロードで 300 パート程度。無料枠（100 万/月）に収まる |
 | R2 読み出し（Class B） | 未キャッシュのタイル 1 枚あたり 1〜2 回。1,000 万/月まで無料、超過は $0.36/100 万 |
 | 転送量 | R2 は無料 |
@@ -100,4 +122,7 @@ gh secret set CLOUDFLARE_API_TOKEN --env prod
 - 国土地理院 最適化ベクトルタイル: [国土地理院コンテンツ利用規約](https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html)に従う。
   「国土地理院最適化ベクトルタイル」と出典を表示すること。試験公開のため、仕様・URL は変わることがある
   （[gsi-cyberjapan/optimal_bvmap](https://github.com/gsi-cyberjapan/optimal_bvmap)）。
+- Mapterhorn: 出典は [mapterhorn.com/attribution](https://mapterhorn.com/attribution) に従って表示すること。
+  日本域は国土地理院 基盤地図情報（数値標高モデル）由来で、「測量法に基づく国土地理院長承認（使用）R 8JHs 131」の表示を含む。
+  コードは BSD-3-Clause。
 - このリポジトリのコード: MIT
