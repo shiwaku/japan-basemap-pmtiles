@@ -72,7 +72,8 @@ jobs:
         run: scripts/mirror-mapterhorn.sh "$FILE"
       - name: サマリ
         if: always()
-        run: echo "- \`$FILE\`: ${{ steps.mirror.outcome }}（${{ steps.mirror.outputs.size || '-' }} bytes）" >>"$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "- \`$FILE\`: ${{ steps.mirror.outcome }}（${{ steps.mirror.outputs.size || '-' }} bytes）" >>"$GITHUB_STEP_SUMMARY"
 
   # tiles.shi-works.com/mapterhorn/... はファイル名と URL が対応しないので、最後にまとめて消す
   purge:
