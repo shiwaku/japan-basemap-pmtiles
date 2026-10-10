@@ -1,10 +1,11 @@
 # japan-basemap-tile-pipeline
 
-日本のベクトルタイル（PMTiles）を GitHub Actions で週1回更新し、Cloudflare R2 から配信する。
+日本域の背景地図タイル（OSM のベクトルタイル・国土地理院 最適化ベクトルタイル・Mapterhorn の標高タイル）を
+GitHub Actions で週1回更新し、Cloudflare R2 から PMTiles と ZXY で配信する。
 
 | データ | 元 | 生成 | 更新 |
 |---|---|---|---|
-| OSM（OpenMapTiles スキーマ、z0–14） | Geofabrik `asia/japan-latest.osm.pbf` | Planetiler 0.10.2 | 毎週月曜 03:00 JST に生成 |
+| OSM（OpenMapTiles スキーマ、z0–14） | Geofabrik `asia/japan-latest.osm.pbf` ＋ 北方領土・竹島（隣国の抽出から切り出し） | osmium で結合 → Planetiler 0.10.2 | 毎週月曜 03:00 JST に生成 |
 | 国土地理院 最適化ベクトルタイル（z4–16） | `optimal_bvmap-v1.pmtiles` | そのままミラー | 毎週水曜 03:00 JST に確認し、配信元の ETag が変わったときだけ取り直す |
 | [Mapterhorn](https://github.com/mapterhorn/mapterhorn) 標高タイル（Terrarium・512px・WebP、z0–16） | `download.mapterhorn.com` | z0–12 は `planet.pmtiles` から日本を切り出し、z13+ は日本域の `6-x-y.pmtiles` をそのままミラー | 毎週木曜 03:00 JST に確認し、md5 が変わったファイルだけ取り直す |
 
@@ -39,13 +40,30 @@ Mapterhorn は `tiles.mapterhorn.com` と同じ使い方になる（ズームに
 OpenMapTiles スキーマなので、OSM Bright・Positron・Dark Matter などの OpenMapTiles 系スタイルの
 `sources.openmaptiles` をこの URL に差し替えれば使える（glyphs・sprite は別途用意する）。
 
+## 領土の表示（北方領土・竹島）
+
+OSM は実効支配に基づいて国を分ける（On the Ground 原則）。Geofabrik の `japan` には北方領土（ロシア側）と
+竹島（韓国側）が入っていないため、`russia/far-eastern-fed-district` と `asia/south-korea` から
+その範囲だけを切り出して結合している（`scripts/build-osm.sh` の `EXTRA_SOURCES`）。
+これで道路・建物・地名などの地物はタイルに入る。
+
+ただし**国境線・国名・地名の値は OSM のまま**（北方領土はロシア、竹島は韓国の扱い）。
+日本の公式見解で表示する地図では、スタイル側で次のように扱う（2026-10 の北海道＋北方領土の試験ビルドで確認）。
+
+- **国境線**: 根室海峡などの日露の線は `admin_level=2`・`maritime=1`・`adm0_l=RUS`／`adm0_r=JPN`・**`disputed=0`**
+  で出る（係争扱いになっていない）。`disputed` では絞れないので、日本周辺では `boundary` の `admin_level=2` を表示せず、
+  国境・行政界は国土地理院 最適化ベクトルタイル（北方領土・竹島を日本として収録）を重ねて描く
+- **地名**: `name` は現地語（北方領土はロシア語、竹島は韓国語）。`name:ja` も旧来の日本名とは限らない
+  （例: 国後島の中心集落は「古釜布」ではなく「ユジノ・クリリスク」、竹島の地物は韓国名のカタカナ表記）。
+  北方領土・竹島の地名は OSM のラベルを出さず、国土地理院 最適化ベクトルタイルの注記を使う
+
 ## 仕組み
 
 ```
 GitHub Actions（週1）
   ├─ osm-openmaptiles.yml
-  │    Geofabrik の Last-Modified と Planetiler のバージョンを R2 のメタデータと比較
-  │    → 変わっていれば pbf 取得 → Planetiler → pmtiles show で検査 → R2 に上書き → キャッシュをパージ
+  │    Geofabrik の Last-Modified（japan と補う地域）と Planetiler のバージョンを R2 のメタデータと比較
+  │    → 変わっていれば pbf 取得 → 補う地域を切り出して結合 → Planetiler → pmtiles show で検査 → R2 に上書き → キャッシュをパージ
   └─ gsi-optimal-bvmap.yml
        配信元の ETag を R2 のメタデータと比較
        → 変わっていれば取得 → サイズ・ETag 再確認 → pmtiles show で検査 → R2 に上書き → キャッシュをパージ

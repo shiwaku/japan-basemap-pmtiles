@@ -1,0 +1,25 @@
+# ローカル実行。既定は DRY_RUN=true（R2 に書かない・パージしない）で、成果物は ./work に残る。
+#   docker compose run --rm pipeline scripts/build-osm.sh
+#   docker compose run --rm -e PBF_URL=https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf pipeline scripts/build-osm.sh
+# 本番の R2 を読み書きするときは .env に認証情報を置き、DRY_RUN=false を渡す（README「ローカルで試す」）。
+services:
+  pipeline:
+    build: .
+    image: japan-basemap-tile-pipeline
+    volumes:
+      - .:/repo:ro
+      - ./work:/work
+      # Planetiler の一時ファイルは量が多くランダムアクセスなので、Windows とのバインドマウントに置かない
+      - planetiler-tmp:/scratch
+    environment:
+      WORK_DIR: /work
+      PLANETILER_TMP: /scratch
+      DRY_RUN: ${DRY_RUN:-true}
+      FORCE: ${FORCE:-false}
+      JAVA_XMX: ${JAVA_XMX:-10g}
+    env_file:
+      - path: .env
+        required: false
+
+volumes:
+  planetiler-tmp:
