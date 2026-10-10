@@ -1,2 +1,103 @@
 # japan-basemap-pmtiles
-OSM（OpenMapTiles）と国土地理院最適化ベクトルタイルの PMTiles を GitHub Actions で定期更新し Cloudflare R2 から配信する
+
+日本のベクトルタイル（PMTiles）を GitHub Actions で週1回更新し、Cloudflare R2 から配信する。
+
+| データ | 元 | 生成 | 更新 |
+|---|---|---|---|
+| OSM（OpenMapTiles スキーマ、z0–14） | Geofabrik `asia/japan-latest.osm.pbf` | Planetiler 0.10.2 | 毎週月曜 03:00 JST に生成 |
+| 国土地理院 最適化ベクトルタイル（z4–16） | `optimal_bvmap-v1.pmtiles` | そのままミラー | 毎週水曜 03:00 JST に確認し、配信元の ETag が変わったときだけ取り直す |
+
+## 配信 URL
+
+R2 バケット `shi-works` のキー設計（第1階層＝アクセス方法）に従い `pmtiles/` 配下に置く。
+同じキーに上書きするので URL は変わらない。
+
+| データ | PMTiles（`pmtiles://`） | ZXY（Worker `dem2tiles-tiles`） |
+|---|---|---|
+| OSM | `https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles` | `https://tiles.shi-works.com/osm/openmaptiles-japan/{z}/{x}/{y}.pbf` |
+| 国土地理院 | `https://shi-works.com/pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles` | `https://tiles.shi-works.com/gsi/optimal_bvmap/optimal_bvmap-v1/{z}/{x}/{y}.pbf` |
+
+TileJSON は ZXY の `/{z}/{x}/{y}.pbf` を `.json` に替えた URL。
+
+```js
+// MapLibre GL JS
+{ type: 'vector', url: 'pmtiles://https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles' }
+// または
+{ type: 'vector', url: 'https://tiles.shi-works.com/osm/openmaptiles-japan.json' }
+```
+
+OpenMapTiles スキーマなので、OSM Bright・Positron・Dark Matter などの OpenMapTiles 系スタイルの
+`sources.openmaptiles` をこの URL に差し替えれば使える（glyphs・sprite は別途用意する）。
+
+## 仕組み
+
+```
+GitHub Actions（週1）
+  ├─ osm-openmaptiles.yml
+  │    Geofabrik の Last-Modified と Planetiler のバージョンを R2 のメタデータと比較
+  │    → 変わっていれば pbf 取得 → Planetiler → pmtiles show で検査 → R2 に上書き → キャッシュをパージ
+  └─ gsi-optimal-bvmap.yml
+       配信元の ETag を R2 のメタデータと比較
+       → 変わっていれば取得 → サイズ・ETag 再確認 → pmtiles show で検査 → R2 に上書き → キャッシュをパージ
+
+Cloudflare
+  ├─ shi-works.com        R2 カスタムドメイン（Range リクエストで pmtiles:// を読む）
+  └─ tiles.shi-works.com  Worker dem2tiles-tiles（PMTiles → ZXY、Cache API）
+```
+
+- **差し替えは同じキーへの上書き。** マルチパートアップロードは完了時に一括で差し替わるので、
+  書き込み途中の状態は読まれない。Worker はアーカイブの ETag が変わると読み直す
+  （`EtagMismatch`）。その後 `shi-works.com/<key>` と `tiles.shi-works.com/<name>` を prefix でパージする。
+- **壊れた成果物を上げない。** 前回の 70% 未満のサイズなら止まる（`force` で解除）。
+  タイル形式が MVT でない場合も止まる。
+- **作業はランナーの `/mnt`。** `/` は空きが少ない。OSM は約 30GB、国土地理院は約 22GB を要求する。
+- 元データの情報は R2 オブジェクトのメタデータ（`x-amz-meta-source-*`、`planetiler-version`）に残る。
+
+```bash
+aws s3api head-object --bucket shi-works --key pmtiles/osm/openmaptiles-japan.pmtiles \
+  --endpoint-url https://<account>.r2.cloudflarestorage.com --query Metadata
+```
+
+手動実行は Actions の各ワークフローから `Run workflow`（`force` で強制再生成）。
+
+## セットアップ
+
+GitHub の Environment **`prod`** に登録する。
+
+| 種類 | 名前 | 内容 |
+|---|---|---|
+| Variable | `R2_ACCOUNT_ID` | Cloudflare のアカウント ID |
+| Variable | `CLOUDFLARE_ZONE_ID` | `shi-works.com` のゾーン ID |
+| Secret | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | R2 API トークン（バケット `shi-works` に限定、Object Read & Write） |
+| Secret | `CLOUDFLARE_API_TOKEN` | `shi-works.com` ゾーンの **Cache Purge** 権限だけを持つ API トークン |
+
+```bash
+gh variable set R2_ACCOUNT_ID --env prod --body <account_id>
+gh variable set CLOUDFLARE_ZONE_ID --env prod --body <zone_id>
+gh secret set R2_ACCESS_KEY_ID --env prod
+gh secret set R2_SECRET_ACCESS_KEY --env prod
+gh secret set CLOUDFLARE_API_TOKEN --env prod
+```
+
+`CLOUDFLARE_API_TOKEN` が無い場合はパージを省略する（タイルは Worker のキャッシュ期限 1 日で入れ替わる）。
+
+## コストの目安
+
+| 項目 | 目安 |
+|---|---|
+| R2 ストレージ | 約 21GB（国土地理院 16.9GB + OSM 数GB）× $0.015/GB・月 ≒ **$0.3/月** |
+| R2 書き込み（Class A） | 1 回のアップロードで 300 パート程度。無料枠（100 万/月）に収まる |
+| R2 読み出し（Class B） | 未キャッシュのタイル 1 枚あたり 1〜2 回。1,000 万/月まで無料、超過は $0.36/100 万 |
+| 転送量 | R2 は無料 |
+| Workers | ZXY 経由のみ。無料プランは 10 万リクエスト/日、有料は $5/月で 1,000 万込み |
+| GitHub Actions | public リポジトリの標準ランナーは無料 |
+
+## 出典・ライセンス
+
+- OSM 由来のタイル: © OpenStreetMap contributors（[ODbL](https://www.openstreetmap.org/copyright)）。
+  スキーマは © OpenMapTiles（[CC-BY 4.0](https://github.com/openmaptiles/openmaptiles/blob/master/LICENSE.md)）。
+  地図には「© OpenMapTiles © OpenStreetMap contributors」を表示すること。
+- 国土地理院 最適化ベクトルタイル: [国土地理院コンテンツ利用規約](https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html)に従う。
+  「国土地理院最適化ベクトルタイル」と出典を表示すること。試験公開のため、仕様・URL は変わることがある
+  （[gsi-cyberjapan/optimal_bvmap](https://github.com/gsi-cyberjapan/optimal_bvmap)）。
+- このリポジトリのコード: MIT
