@@ -8,12 +8,14 @@
 // - 地名・道路名などは日本語名（name:ja）を優先する
 // - 北方領土・竹島は、タイル生成時に OSM の名前を消してある（scripts/build-osm.sh）。
 //   その範囲（territories.json）にだけ国土地理院 最適化ベクトルタイルの注記を重ねる
+// - 北方領土の係争線（Natural Earth 由来）を消し、国土地理院の「国の所属界」を重ねる
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type {
   ExpressionSpecification,
   FilterSpecification,
   LayerSpecification,
+  LineLayerSpecification,
   StyleSpecification,
   SymbolLayerSpecification,
 } from '@maplibre/maplibre-gl-style-spec';
@@ -38,9 +40,45 @@ function usesName(value: unknown): boolean {
   return JSON.stringify(value ?? null).includes('name');
 }
 
-const layers: LayerSpecification[] = base.layers.map((layer) => {
-  if (layer.type !== 'symbol' || !usesName(layer.layout?.['text-field'])) return layer;
-  return { ...layer, layout: { ...layer.layout, 'text-field': nameJa } };
+// 国境線。Bright は海上の線（maritime=1）を描かないので、日本周辺で OSM から描かれるのは
+// z0–4（Natural Earth 由来）の北方領土の係争線（根室海峡〜国後水道）だけ。これを消し、
+// 国土地理院の「国の所属界」（z4–7。択捉島と得撫島の間・竹島の北西・対馬海峡など）を重ねる
+const NORTHERN_AREA: { type: 'Polygon'; coordinates: number[][][] } = {
+  type: 'Polygon',
+  coordinates: [
+    [
+      [144.5, 42.5],
+      [150.5, 42.5],
+      [150.5, 46.5],
+      [144.5, 46.5],
+      [144.5, 42.5],
+    ],
+  ],
+};
+const gsiCountryBoundary: LineLayerSpecification = {
+  id: 'gsi_boundary_country',
+  type: 'line',
+  source: 'gsi',
+  'source-layer': 'AdmBdry',
+  minzoom: 4,
+  maxzoom: 8,
+  filter: ['==', ['get', 'vt_code'], 1221],
+  layout: { 'line-cap': 'round', 'line-join': 'round' },
+  // boundary_2 と同じ見た目
+  paint: {
+    'line-color': 'hsl(248,7%,66%)',
+    'line-width': ['interpolate', ['linear'], ['zoom'], 3, 1, 5, 1.2, 12, 3],
+  },
+};
+
+const layers: LayerSpecification[] = base.layers.flatMap((layer): LayerSpecification[] => {
+  if (layer.id === 'boundary_disputed' && layer.type === 'line') {
+    const filter = ['all', layer.filter, ['!', ['within', NORTHERN_AREA]]] as FilterSpecification;
+    return [{ ...layer, filter }];
+  }
+  if (layer.id === 'boundary_2') return [layer, gsiCountryBoundary];
+  if (layer.type !== 'symbol' || !usesName(layer.layout?.['text-field'])) return [layer];
+  return [{ ...layer, layout: { ...layer.layout, 'text-field': nameJa } }];
 });
 
 // 国土地理院の注記。vt_code が 1000 未満のもの（地名・自然地名）で、文字があるものだけ。
