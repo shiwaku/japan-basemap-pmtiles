@@ -4,7 +4,7 @@
 # 必要な環境変数:
 #   R2_ACCOUNT_ID, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  … R2（S3 互換 API）
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID                 … キャッシュのパージ
-#   WORK_DIR                                                  … 作業ディレクトリ（大容量）
+#   WORK_DIR                                                  … 作業ディレクトリ（大容量）。既定はスクリプトごとに /work/<osm|gsi|mapterhorn>
 #   DRY_RUN=true                                              … R2 に書かず、パージもしない（ローカル試験用）。
 #                                                               R2 の認証情報が無ければ R2 も読まない（前回分なしとして扱う）
 #   S3_ENDPOINT                                               … R2 の代わりに使う S3 互換 API（ローカル試験の versitygw）。

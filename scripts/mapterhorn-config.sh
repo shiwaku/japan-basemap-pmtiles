@@ -1,6 +1,7 @@
 # shellcheck shell=bash disable=SC2034
 # Mapterhorn ミラーの設定（mapterhorn-plan.sh / mirror-mapterhorn.sh から source する）
 
+: "${WORK_DIR:=/work/mapterhorn}"
 MAPTERHORN_BASE=https://download.mapterhorn.com
 # R2 のキーの接頭辞。ファイル名は上流と同じにしておく（公式ミラー登録をできるように）
 MAPTERHORN_PREFIX="${KEY_PREFIX:-}pmtiles/mapterhorn"

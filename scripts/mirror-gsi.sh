@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # 国土地理院 最適化ベクトルタイル（optimal_bvmap-v1.pmtiles）を R2 にミラーする。
 #
-#   WORK_DIR=/mnt/work FORCE=false scripts/mirror-gsi.sh
+#   WORK_DIR=/mnt/work FORCE=false scripts/mirror-gsi.sh   （WORK_DIR の既定は /work/gsi）
 #
 # 配信元の ETag が前回と同じなら何もしない（全国更新は 2〜4 か月ごと）。
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
 
+: "${WORK_DIR:=/work/gsi}"
 # ローカル試験では小さい PMTiles（MVT）に替えられる。R2 のキーは変わらないので本番では替えない
 : "${SRC_URL:=https://cyberjapandata.gsi.go.jp/xyz/optimal_bvmap-v1/optimal_bvmap-v1.pmtiles}"
 KEY="${KEY_PREFIX}pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles"

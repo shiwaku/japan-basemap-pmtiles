@@ -2,7 +2,7 @@
 # Mapterhorn のファイルを 1 つ R2 に写す。
 #
 #   WORK_DIR=/mnt/work scripts/mirror-mapterhorn.sh planet-japan
-#   WORK_DIR=/mnt/work scripts/mirror-mapterhorn.sh 6-56-25
+#   WORK_DIR=/mnt/work scripts/mirror-mapterhorn.sh 6-56-25   （WORK_DIR の既定は /work/mapterhorn）
 #
 # planet-japan: planet.pmtiles から日本の範囲を pmtiles extract で切り出して上げる（約 2.7GB）
 # 6-x-y       : ディスクを使わず R2 の一時キーへ流し込み、md5 が上流と一致したら本番キーへ R2 内でコピーする。
