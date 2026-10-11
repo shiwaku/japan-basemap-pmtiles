@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Geofabrik の japan-latest.osm.pbf から OpenMapTiles スキーマの PMTiles を Planetiler で生成し、R2 に置く。
 #
-#   WORK_DIR=/mnt/work FORCE=false scripts/build-osm.sh
+#   WORK_DIR=/mnt/work FORCE=false scripts/build-osm.sh   （WORK_DIR の既定は /work/osm）
 #   PLANETILER_TMP … Planetiler の一時ディレクトリ（既定 $WORK_DIR/data/tmp）
 #
 # Geofabrik の japan は OSM の実効支配による範囲で、北方領土（ロシア側）と竹島（韓国側）を含まない。
@@ -13,6 +13,7 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
 
+: "${WORK_DIR:=/work/osm}"
 PLANETILER_VERSION=0.10.2
 PLANETILER_SHA256=f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d
 # ローカル試験では小さい地域に替えられる（例: asia/japan/shikoku-latest.osm.pbf）。R2 のキーは変わらないので本番では替えない

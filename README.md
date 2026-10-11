@@ -83,7 +83,7 @@ OpenFreeMap の [Bright](https://openfreemap.org/)（OSM Bright 系）をもと�
 cd style
 pnpm install
 pnpm build        # openmaptiles-japan.json を作り直す（CI は pnpm check で差分が無いことを確かめる）
-pnpm dev          # 確認用ビューア http://localhost:5173/ 。?local を付けると ../work/openmaptiles-japan.pmtiles を表示
+pnpm dev          # 確認用ビューア http://localhost:5173/ 。?local を付けると ../work/osm/openmaptiles-japan.pmtiles を表示
 ```
 
 `territories.json` は `tools/make_territories.py`（shapely）で OSM の海岸線から作る（手順はスクリプトの先頭）。
@@ -182,6 +182,18 @@ R2 内コピーの不具合は ② でしか出ない（2026-10 の初回本番�
 docker compose run --rm -e PBF_URL=https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf \
   -e OSM_BOUNDS=132.0,32.7,134.8,34.6 -e EXTRA_SOURCES= pipeline scripts/build-osm.sh
 ```
+
+`./work`（.gitignore 済み）の置き方。スクリプトはそれぞれ自分のディレクトリの中だけに書く。
+
+| 場所 | 中身 | 消してよいか |
+|---|---|---|
+| `work/osm/` | `build-osm.sh` の作業場所。`openmaptiles-japan.pmtiles`（ビューアの `?local` が読む）、`planetiler.jar`、`data/sources/`（Natural Earth・水域ポリゴンのキャッシュと pbf） | pbf（`*.osm.pbf`）は毎回取り直すので消してよい。zip は消すと次回取り直す（約 1.4GB） |
+| `work/gsi/` | `mirror-gsi.sh` の作業場所 | よい |
+| `work/mapterhorn/` | `mapterhorn-plan.sh`・`mirror-mapterhorn.sh` の作業場所 | よい |
+| `work/test-local/`・`work/test-r2/` | `test.sh` の作業場所。実行のたびに消して作り直す | よい |
+| `work/testsrc/` | `test.sh` が使う試験用の国土地理院 PMTiles（compose の testsrc が配信）。無ければ作る | よい（次回作り直す） |
+| `work/territories/` | `style/tools/make_territories.py` の入力（OSM の海岸線） | よい（手順はスクリプトの先頭） |
+| `work/logs/` | 手で残すログ（`… 2>&1 \| tee work/logs/osm-japan.log` など） | よい |
 
 ## コストの目安
 

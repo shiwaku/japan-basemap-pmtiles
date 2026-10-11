@@ -1,6 +1,6 @@
 // スタイル（openmaptiles-japan.json）を確認するビューア。
 //   pnpm dev → http://localhost:5173/          … R2 のタイル
-//              http://localhost:5173/?local    … ../work/openmaptiles-japan.pmtiles（ローカルで生成したもの）
+//              http://localhost:5173/?local    … ../work/osm/openmaptiles-japan.pmtiles（ローカルで生成したもの）
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
@@ -20,7 +20,7 @@ if (local) {
   osm.url = `pmtiles://${location.origin}/openmaptiles-japan.pmtiles`;
 }
 const label = document.querySelector('#src');
-if (label) label.textContent = local ? 'OSM: ローカル（work/）' : 'OSM: R2';
+if (label) label.textContent = local ? 'OSM: ローカル（work/osm/）' : 'OSM: R2';
 
 const map = new maplibregl.Map({
   container: 'map',

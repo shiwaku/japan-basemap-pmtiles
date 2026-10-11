@@ -5,7 +5,8 @@
 北海道の海岸線との中間線で切り、北海道側の注記（とそれと重なる OSM の地名）が入らないようにする。
 
 入力は OSM の海岸線（natural=coastline）の GeoJSON Seq。scripts/build-osm.sh が作る
-data/sources/extra-*.clip.osm.pbf と japan.osm.pbf から、次のように書き出す（compose のコンテナ内）:
+data/sources/extra-*.clip.osm.pbf と japan.osm.pbf（ローカルでは work/osm/data/sources/）から、
+次のように書き出す（compose のコンテナ内。書き出し先は work/territories/ にする）:
 
   osmium tags-filter extra-0.clip.osm.pbf w/natural=coastline -o coast-0.osm.pbf
   osmium export coast-0.osm.pbf -f geojsonseq -o coast-0.geojsonseq          # 北方領土（1 は竹島）
