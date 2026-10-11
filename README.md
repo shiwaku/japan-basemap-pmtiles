@@ -56,9 +56,16 @@ OSM は実効支配に基づいて国を分ける（On the Ground 原則）。Ge
 2. **スタイル**（`style/openmaptiles-japan.json`）で、北方領土・竹島の範囲（`style/territories.json`）にだけ
    国土地理院 最適化ベクトルタイルの注記（`Anno` レイヤー）を重ねる。範囲は島の海岸線から 10km、北方領土は北海道の海岸線との中間線で切ってある
 
-**国境線は未対応（OSM のまま）。** 根室海峡などの日露の線は `admin_level=2`・`maritime=1`・`adm0_l=RUS`／`adm0_r=JPN`・
-**`disputed=0`**（係争扱いになっていない）で出るので `disputed` では消せない。日本周辺では OSM の `admin_level=2` を出さず、
-国土地理院 最適化ベクトルタイルの境界を重ねる予定（issue #3）。
+**国境線は国土地理院の「国の所属界」を使う。** タイルには根室海峡などの日露の線が `admin_level=2`・`maritime=1`・
+`adm0_l=RUS`／`adm0_r=JPN`・`disputed=0`（係争扱いになっていない）で入っている。ただし Bright は海上の線（`maritime=1`）を描かないので、
+日本周辺でスタイルに出る OSM の線は、z0–4（Natural Earth 由来）の北方領土の係争線（`disputed=1`、根室海峡〜国後水道）だけになる。そこで
+
+1. その係争線を消す（`boundary_disputed` に、北方領土周辺の範囲に収まる線を除く条件を足す）
+2. 国土地理院 最適化ベクトルタイルの「国の所属界」（`AdmBdry`・`vt_code=1221`）を z4–7 に重ねる（`gsi_boundary_country`、見た目は `boundary_2` と同じ）。
+   択捉島と得撫島の間、竹島と鬱陵島の間、対馬海峡、宗谷海峡、与那国島と台湾の間などに引かれ、根室海峡には無い。
+   国土地理院のデータは z8 以上にこの線を持たない（標準地図も z8 以上では描かない）ので、z8 以上ではどちらの線も出ない
+
+国名ラベルは「日本」だけが入っていて、北方領土付近に「ロシア」は出ない。
 
 ## スタイル（style/）
 
@@ -68,6 +75,7 @@ OpenFreeMap の [Bright](https://openfreemap.org/)（OSM Bright 系）をもと�
 - タイルの参照先を R2 の PMTiles（`pmtiles://`）にする。表示側で [pmtiles](https://github.com/protomaps/PMTiles) のプロトコルを登録する
 - 地名・道路名は日本語名（`name:ja`）→ `name` の順
 - 北方領土・竹島に国土地理院の注記を重ねる（上記）
+- 北方領土の係争線を消し、国土地理院の「国の所属界」を重ねる（上記）
 
 `vendor/openfreemap-bright.json` を `build-style.ts` で書き換えて `openmaptiles-japan.json` を作る。手で編集しない。
 

@@ -4902,6 +4902,44 @@
       }
     },
     {
+      "id": "gsi_boundary_country",
+      "type": "line",
+      "source": "gsi",
+      "source-layer": "AdmBdry",
+      "minzoom": 4,
+      "maxzoom": 8,
+      "filter": [
+        "==",
+        [
+          "get",
+          "vt_code"
+        ],
+        1221
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "hsl(248,7%,66%)",
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          3,
+          1,
+          5,
+          1.2,
+          12,
+          3
+        ]
+      }
+    },
+    {
       "id": "boundary_disputed",
       "type": "line",
       "source": "openmaptiles",
@@ -4909,20 +4947,56 @@
       "filter": [
         "all",
         [
-          "!=",
+          "all",
           [
-            "get",
-            "maritime"
+            "!=",
+            [
+              "get",
+              "maritime"
+            ],
+            1
           ],
-          1
+          [
+            "==",
+            [
+              "get",
+              "disputed"
+            ],
+            1
+          ]
         ],
         [
-          "==",
+          "!",
           [
-            "get",
-            "disputed"
-          ],
-          1
+            "within",
+            {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    144.5,
+                    42.5
+                  ],
+                  [
+                    150.5,
+                    42.5
+                  ],
+                  [
+                    150.5,
+                    46.5
+                  ],
+                  [
+                    144.5,
+                    46.5
+                  ],
+                  [
+                    144.5,
+                    42.5
+                  ]
+                ]
+              ]
+            }
+          ]
         ]
       ],
       "paint": {
