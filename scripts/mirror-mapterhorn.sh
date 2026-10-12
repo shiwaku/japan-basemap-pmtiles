@@ -57,12 +57,29 @@ if is_dry_run; then
   exit 0
 fi
 
+# 上流を MAPTERHORN_CHUNK バイト（既定 2GiB）ずつ Range で取り、順に標準出力へ流す。
+# 1 本の接続で 40GB 以上を取ると 10〜18 分で切れる（HTTP/2 stream was not closed cleanly）ので区切る。
+# 区切りごとに一度ディスクに落とし、長さを確かめてから流す（途中で切れても継ぎはぎにしない。curl の再試行は書き直す）
+: "${MAPTERHORN_CHUNK:=$((2 * 1024 ** 3))}"
+stream_ranges() {
+  local url=$1 size=$2 start=0 end
+  while ((start < size)); do
+    end=$((start + MAPTERHORN_CHUNK - 1))
+    ((end < size)) || end=$((size - 1))
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -r "$start-$end" -o chunk.part "$url" || return 1
+    [[ "$(stat -c %s chunk.part)" == $((end - start + 1)) ]] || { log "範囲 $start-$end の長さが違う"; return 1; }
+    cat chunk.part
+    start=$((end + 1))
+  done
+  rm -f chunk.part
+}
+
 STAGING="_staging/$KEY"
 for attempt in 1 2 3; do
   log "転送 $attempt 回目: $src_url → s3://$R2_BUCKET/$STAGING"
   rm -f got.md5
-  # 途中で切れたら curl の再開は使わず（ストリームが継ぎはぎになる）、最初からやり直す
-  if curl -fsSL "$src_url" \
+  # 区切りの再試行でも直らなければ、最初からやり直す
+  if stream_ranges "$src_url" "$size" \
     | tee >(md5sum | cut -d' ' -f1 >got.md5) \
     | aws s3 cp - "s3://$R2_BUCKET/$STAGING" --endpoint-url "$R2_ENDPOINT" \
       --expected-size "$size" \

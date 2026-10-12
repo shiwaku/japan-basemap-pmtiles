@@ -101,6 +101,8 @@ check "もう一度戻すと戻す前の版に戻る" [ "$(r2_meta "$GSI_KEY" te
 # ---- Mapterhorn（竹島付近だけ。6-55-24 は 4KB、6-58-22 は 13MB）----
 log "== Mapterhorn"
 export JAPAN_BBOX=131.5,37.0,132.0,37.5
+# 13MB の 6-58-22 を複数の範囲に分けて取る
+export MAPTERHORN_CHUNK=$((4 * 1024 * 1024))
 MH="${KEY_PREFIX}pmtiles/mapterhorn"
 run mapterhorn-plan.sh
 check "計画が planet-japan と 6-55-24 になる（$(out files)）" [ "$(out files)" = '["planet-japan","6-55-24"]' ]
@@ -113,7 +115,7 @@ meta=$(s3 s3api head-object --bucket "$R2_BUCKET" --key "$MH/6-55-24.pmtiles" --
 check "R2 内コピーの後も Content-Type・Cache-Control を保つ（$meta）" [ "$meta" = $'application/octet-stream\tpublic, max-age=3600' ]
 run mapterhorn-plan.sh
 check "再計画で取り直すものが無い（$(out files)）" [ "$(out files)" = '[]' ]
-unset JAPAN_BBOX
+unset JAPAN_BBOX MAPTERHORN_CHUNK
 
 # ---- OSM（任意）----
 if [[ "${WITH_OSM:-false}" == true ]]; then
