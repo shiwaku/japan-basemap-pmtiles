@@ -82,14 +82,46 @@ r2_size() {
     --query ContentLength --output text 2>/dev/null || echo 0
 }
 
+# 直前の版を置くキー。R2 にはバージョニングが無いので、上書きの前に今の版をここへ写しておき、
+# rollback.sh で戻せるようにする（1 世代）。KEY_PREFIX（試験の _test/）の中に置く。
+#   pmtiles/osm/x.pmtiles → _previous/pmtiles/osm/x.pmtiles
+previous_key() { echo "${KEY_PREFIX}_previous/${1#"$KEY_PREFIX"}"; }
+
+# R2 内のコピー。メタデータ・Content-Type・Cache-Control を引き継ぐ。
+# R2 は CopyObject の x-amz-tagging-directive も GetObjectTagging も実装していない。
+# - 5GiB 未満: 単発の CopyObject（s3api なら tagging-directive を付けない。メタデータはそのまま引き継ぐ）
+# - 5GiB 以上: aws s3 cp のマルチパートコピー。--copy-props metadata-directive で GetObjectTagging を避ける
+#   （R2-STRUCTURE.md §6.7。このときは単発コピーにならないので tagging-directive も付かない）
+#   r2_copy <コピー元キー> <コピー先キー>
+r2_copy() {
+  local src=$1 dst=$2 size
+  size=$(r2_size "$src")
+  ((size > 0)) || { log "コピー元が無い: $src"; exit 1; }
+  aws configure set default.s3.multipart_chunksize 64MB
+  aws configure set default.s3.max_concurrent_requests 16
+  if ((size < 5 * 1024 ** 3)); then
+    aws s3api copy-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" --key "$dst" \
+      --copy-source "$R2_BUCKET/$src" --metadata-directive COPY >/dev/null
+  else
+    aws s3 cp "s3://$R2_BUCKET/$src" "s3://$R2_BUCKET/$dst" --endpoint-url "$R2_ENDPOINT" \
+      --copy-props metadata-directive --only-show-errors
+  fi
+  [[ "$(r2_size "$dst")" == "$size" ]] || { log "コピー後のサイズ不一致: $dst"; exit 1; }
+}
+
 # PMTiles を R2 にアップロードする。同じキーへの上書き（URL を変えない）。
 # マルチパートは完了時に一括で差し替わるので、途中の状態が読まれることはない。
+# 上書きの前に、今の版を previous_key へ写す。
 #   r2_upload <file> <key> <metadata JSON>（値にカンマを含む Last-Modified を入れるため JSON で渡す）
 r2_upload() {
   local file=$1 key=$2 meta=$3
   if is_dry_run; then
     log "DRY_RUN: アップロードしない（$file → $key、$(stat -c %s "$file") bytes、metadata $meta）"
     return
+  fi
+  if (($(r2_size "$key") > 0)); then
+    log "直前の版を退避: $key → $(previous_key "$key")"
+    r2_copy "$key" "$(previous_key "$key")"
   fi
   aws configure set default.s3.multipart_chunksize 64MB
   aws configure set default.s3.max_concurrent_requests 16

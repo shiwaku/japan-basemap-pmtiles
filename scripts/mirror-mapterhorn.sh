@@ -83,18 +83,9 @@ for attempt in 1 2 3; do
   sleep 60
 done
 
-# R2 内のコピー。R2 は CopyObject の x-amz-tagging-directive も GetObjectTagging も実装していない。
-# - 5GiB 未満: 単発の CopyObject（s3api なら tagging-directive を付けない。メタデータはそのまま引き継ぐ）
-# - 5GiB 以上: aws s3 cp のマルチパートコピー。--copy-props metadata-directive で GetObjectTagging を避ける
-#   （R2-STRUCTURE.md §6.7。このときは単発コピーにならないので tagging-directive も付かない）
+# 6-x-y は直前の版を退避しない（上流と md5 を照合してから差し替える写しで、合計 254GB あり退避すると保存料が倍になる）
 log "本番キーへコピー: $KEY"
-if ((size < 5 * 1024 ** 3)); then
-  aws s3api copy-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" --key "$KEY" \
-    --copy-source "$R2_BUCKET/$STAGING" --metadata-directive COPY >/dev/null
-else
-  aws s3 cp "s3://$R2_BUCKET/$STAGING" "s3://$R2_BUCKET/$KEY" --endpoint-url "$R2_ENDPOINT" \
-    --copy-props metadata-directive --only-show-errors
-fi
+r2_copy "$STAGING" "$KEY"
 [[ "$(r2_size "$KEY")" == "$size" && "$(r2_meta "$KEY" source-md5)" == "$md5" ]] || { log "コピー後の確認に失敗"; exit 1; }
 aws s3 rm "s3://$R2_BUCKET/$STAGING" --endpoint-url "$R2_ENDPOINT" --only-show-errors
 purge_prefixes "shi-works.com/$KEY"

@@ -112,6 +112,11 @@ Cloudflare
   （`EtagMismatch`）。その後 `shi-works.com/<key>` と `tiles.shi-works.com/<name>` を prefix でパージする。
 - **壊れた成果物を上げない。** 前回の 70% 未満のサイズなら止まる（`force` で解除）。
   タイル形式が MVT でない場合も止まる。
+- **直前の版を 1 つ残す。** R2 にはバージョニングが無いので、上書きの前に今の版を `_previous/<key>` へ R2 内でコピーする
+  （OSM・国土地理院・Mapterhorn の `planet-japan`）。壊れた版を公開してしまったら、Actions の「直前の版に戻す」
+  （`rollback.yml`、`scripts/rollback.sh`）で今の版と入れ替えてパージする。もう一度実行すると戻す前の版に戻る。
+  戻しても次の定期実行で同じものが再び上がりうるので、原因を直すまでそのワークフローを止めておく。
+  Mapterhorn の `6-x-y` は上流と md5 を照合してから差し替える写しで、合計 254GB あるため残さない（上流から取り直す）
 - **作業はランナーの `/mnt`。** `/` は空きが少ない。OSM は約 30GB、国土地理院は約 22GB を要求する。
 - 元データの情報は R2 オブジェクトのメタデータ（`x-amz-meta-source-*`、`planetiler-version`）に残る。
 
@@ -174,6 +179,7 @@ docker compose down -v   # ① のローカル S3 を消す
 
 どちらも 1〜2 分。国土地理院は小さい試験用 PMTiles（`./work/testsrc` を nginx で配信）を、Mapterhorn は竹島付近の
 `planet-japan` と小さいバンドル 2 本を写し、サイズ・メタデータ・`_staging` の後始末・2 回目のスキップを確かめる。
+直前の版の退避と `rollback.sh` での入れ替え（2 回で元に戻る）も国土地理院のキーで確かめる。
 `WITH_OSM=true` で OSM（四国、約 10 分）も加わる。パージはしない。
 
 ① だけでは足りない。versitygw は R2 が実装していない API（`x-amz-tagging-directive` など）も受け付けるので、
@@ -202,7 +208,7 @@ docker compose run --rm -e PBF_URL=https://download.geofabrik.de/asia/japan/shik
 
 | 項目 | 目安 |
 |---|---|
-| R2 ストレージ | 約 275GB（Mapterhorn 254.5GB + 国土地理院 16.9GB + OSM 数GB）× $0.015/GB・月 ≒ **$4.1/月**（Mapterhorn 分が約 $3.8） |
+| R2 ストレージ | 約 294GB（Mapterhorn 254.5GB + 国土地理院 16.9GB + OSM 1.7GB と、その直前の版 約 21GB）× $0.015/GB・月 ≒ **$4.4/月**（Mapterhorn 分が約 $3.8） |
 | R2 書き込み（Class A） | 1 回のアップロードで 300 パート程度。無料枠（100 万/月）に収まる |
 | R2 読み出し（Class B） | 未キャッシュのタイル 1 枚あたり 1〜2 回。1,000 万/月まで無料、超過は $0.36/100 万 |
 | 転送量 | R2 は無料 |
