@@ -57,6 +57,16 @@ strip_names() {
   ((left == 0)) || { log "名前が消えていない: $left 件"; exit 1; }
 }
 
+# 補う地域の航路（route=ferry）を除く。切り出しは bbox にかかる way を丸ごと残すので、
+# 竹島〜鬱陵島、北方領土〜サハリン（コルサコフ）のような隣国の港への航路が入る（issue #15）。
+#   drop_ferries <入力 pbf> <出力 pbf>
+drop_ferries() {
+  osmium tags-filter --invert-match --overwrite -o "$2" "$1" w/route=ferry r/route=ferry
+  local left
+  left=$(osmium tags-filter --overwrite -o - -f opl "$2" w/route=ferry r/route=ferry | grep -cE '^[wr]' || true)
+  ((left == 0)) || { log "航路が消えていない: $left 件"; exit 1; }
+}
+
 last_modified() { curl -fsSIL "$1" | tr -d '\r' | awk -F': ' 'tolower($1)=="last-modified"{v=$2} END{print v}'; }
 
 read -ra extras <<<"$EXTRA_SOURCES"
@@ -97,8 +107,10 @@ if ((${#extras[@]})); then
     osmium extract --strategy=smart -b "$bbox" --overwrite \
       -o "data/sources/extra-$i.raw.osm.pbf" "data/sources/extra-$i.osm.pbf"
     rm "data/sources/extra-$i.osm.pbf"
-    strip_names "data/sources/extra-$i.raw.osm.pbf" "data/sources/extra-$i.clip.osm.pbf"
+    drop_ferries "data/sources/extra-$i.raw.osm.pbf" "data/sources/extra-$i.noferry.osm.pbf"
     rm "data/sources/extra-$i.raw.osm.pbf"
+    strip_names "data/sources/extra-$i.noferry.osm.pbf" "data/sources/extra-$i.clip.osm.pbf"
+    rm "data/sources/extra-$i.noferry.osm.pbf"
     parts+=("data/sources/extra-$i.clip.osm.pbf")
   done
   # 両方の抽出に入っている同じ版のオブジェクト（境界線など）は 1 つにまとまる。
