@@ -1,0 +1,47 @@
+name: 直前の版に戻す
+
+# 壊れたタイルを公開してしまったときに、上書きの前に退避した直前の版（_previous/<key>）と入れ替える。
+# もう一度実行すると戻す前の版に戻る。戻したあと、定期実行で再び上書きされないよう元の原因を直すこと。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 戻すもの
+        type: choice
+        options:
+          - osm
+          - gsi
+          - planet-japan
+
+permissions:
+  contents: read
+
+# 同じデータの更新ワークフローと同じグループにして、更新の途中で入れ替えない（更新が終わるのを待つ）
+concurrency:
+  group: >-
+    ${{ inputs.target == 'osm' && 'OSM（OpenMapTiles）を更新'
+    || inputs.target == 'gsi' && '国土地理院 最適化ベクトルタイルをミラー'
+    || 'Mapterhorn（日本域の標高タイル）をミラー' }}
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: prod
+    env:
+      WORK_DIR: /tmp/rollback
+      TARGET: ${{ inputs.target }}
+      R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 入れ替え・パージ
+        run: scripts/rollback.sh "$TARGET"
+      - name: サマリ
+        if: always()
+        run: |
+          echo "### 直前の版に戻す: \`$TARGET\`（${{ job.status }}）" >>"$GITHUB_STEP_SUMMARY"

@@ -81,6 +81,22 @@ check "サイズが一致する" [ "$(r2_size "$GSI_KEY")" = "$(stat -c %s "$SAM
 check "メタデータ source-etag がある" [ -n "$(r2_meta "$GSI_KEY" source-etag)" ]
 SRC_URL=http://testsrc/gsi-sample.pmtiles run mirror-gsi.sh
 check "2 回目は ETag が同じなのでスキップする" [ "$(out updated)" = false ]
+GSI_PREV=$(previous_key "$GSI_KEY")
+check "初回は直前の版が無い" absent "$GSI_PREV"
+
+# ---- 直前の版の退避と戻し（国土地理院のキーで試す）----
+log "== 直前の版"
+r2_upload "$SAMPLE" "$GSI_KEY" '{"test-version":"2"}'
+check "上書きの前に直前の版を退避する" [ -n "$(r2_meta "$GSI_PREV" source-etag)" ]
+check "本番キーは新しい版になる" [ "$(r2_meta "$GSI_KEY" test-version)" = 2 ]
+"$REPO/scripts/rollback.sh" gsi
+check "戻すと本番キーが直前の版になる" [ -n "$(r2_meta "$GSI_KEY" source-etag)" ]
+check "戻す前の版が直前の版の位置に入る" [ "$(r2_meta "$GSI_PREV" test-version)" = 2 ]
+check "戻した後も Content-Type・Cache-Control を保つ" [ "$(s3 s3api head-object --bucket "$R2_BUCKET" --key "$GSI_KEY" \
+  --query '[ContentType,CacheControl]' --output text)" = $'application/octet-stream\tpublic, max-age=3600' ]
+check "戻すときの一時キーが消えている" absent "_staging/$GSI_KEY.rollback"
+"$REPO/scripts/rollback.sh" gsi
+check "もう一度戻すと戻す前の版に戻る" [ "$(r2_meta "$GSI_KEY" test-version)" = 2 ]
 
 # ---- Mapterhorn（竹島付近だけ。6-55-24 は 4KB、6-58-22 は 13MB）----
 log "== Mapterhorn"
