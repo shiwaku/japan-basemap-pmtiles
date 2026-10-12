@@ -100,7 +100,8 @@ r2_copy() {
   aws configure set default.s3.multipart_chunksize 64MB
   aws configure set default.s3.max_concurrent_requests 16
   if ((size < 5 * 1024 ** 3)); then
-    aws s3api copy-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" --key "$dst" \
+    # 単発のコピーは終わるまで応答が無く、1.6GB で既定の読み取り待ち 60 秒を超えた（#11）ので待ち時間を延ばす
+    aws s3api copy-object --cli-read-timeout 900 --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" --key "$dst" \
       --copy-source "$R2_BUCKET/$src" --metadata-directive COPY >/dev/null
   else
     aws s3 cp "s3://$R2_BUCKET/$src" "s3://$R2_BUCKET/$dst" --endpoint-url "$R2_ENDPOINT" \
