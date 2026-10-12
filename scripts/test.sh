@@ -119,10 +119,12 @@ unset JAPAN_BBOX
 if [[ "${WITH_OSM:-false}" == true ]]; then
   log "== OSM（四国）"
   PBF_URL=https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf OSM_BOUNDS=132.0,32.7,134.8,34.6 EXTRA_SOURCES='' \
-    run build-osm.sh
+    CHECK_CITIES=matsuyama run build-osm.sh
   check "OSM をアップロードする" [ "$(out updated)" = true ]
   check "メタデータ planetiler-version がある" \
     [ -n "$(r2_meta "${KEY_PREFIX}pmtiles/osm/openmaptiles-japan.pmtiles" planetiler-version)" ]
+  check "メタデータ feature-stats に松山の地物数がある" \
+    grep -q '"matsuyama":\[' <<<"$(r2_meta "${KEY_PREFIX}pmtiles/osm/openmaptiles-japan.pmtiles" feature-stats)"
 fi
 
 # ---- 後片付け（R2 のみ。ローカルは docker compose down -v で消える）----
