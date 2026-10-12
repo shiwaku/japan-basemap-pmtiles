@@ -122,6 +122,8 @@ if ((${#extras[@]})); then
 fi
 
 # --download: Natural Earth・水域ポリゴン・湖の中心線を取得する（OpenMapTiles の低ズームと海に必要）
+# --nodemap-type=sparsearray: array は最大のノード ID（全世界の通し番号）分の領域を取り、約 76GB 要求して
+#   ランナー（/ と /mnt で共有、空き約 86GB）のディスクが尽きた。日本だけなら sparsearray で数 GB に収まる
 log "Planetiler（OpenMapTiles）で生成"
 rm -f openmaptiles-japan.pmtiles
 java "-Xmx${JAVA_XMX}" -jar planetiler.jar \
@@ -131,7 +133,7 @@ java "-Xmx${JAVA_XMX}" -jar planetiler.jar \
   --download-dir=data/sources \
   --tmpdir="${PLANETILER_TMP:-data/tmp}" \
   --output=openmaptiles-japan.pmtiles \
-  --nodemap-type=array --storage=mmap
+  --nodemap-type=sparsearray --storage=mmap
 
 pmtiles show openmaptiles-japan.pmtiles | tee show.txt
 grep -qiE 'tile type:.*mvt' show.txt || { log "MVT ではない"; exit 1; }
