@@ -97,7 +97,7 @@ pnpm dev          # 確認用ビューア http://localhost:5173/ 。?local を�
 GitHub Actions（週1）
   ├─ osm-openmaptiles.yml
   │    Geofabrik の Last-Modified（japan と補う地域）と Planetiler のバージョンを R2 のメタデータと比較
-  │    → 変わっていれば pbf 取得 → 補う地域を切り出して結合 → Planetiler → pmtiles show で検査 → R2 に上書き → キャッシュをパージ
+  │    → 変わっていれば pbf 取得 → 補う地域を切り出して結合 → Planetiler → pmtiles show・主要都市のタイルで検査 → R2 に上書き → キャッシュをパージ
   └─ gsi-optimal-bvmap.yml
        配信元の ETag を R2 のメタデータと比較
        → 変わっていれば取得 → サイズ・ETag 再確認 → pmtiles show で検査 → R2 に上書き → キャッシュをパージ
@@ -112,6 +112,15 @@ Cloudflare
   （`EtagMismatch`）。その後 `shi-works.com/<key>` と `tiles.shi-works.com/<name>` を prefix でパージする。
 - **壊れた成果物を上げない。** 前回の 70% 未満のサイズなら止まる（`force` で解除）。
   タイル形式が MVT でない場合も止まる。
+- **OSM は主要都市のタイルで検査する**（`scripts/check-osm.py`）。誰でも編集できるデータを週1で無審査に公開するので、
+  一部地域の欠落や荒らしを素通りさせないため。札幌・仙台・東京・名古屋・大阪・広島・松山・福岡・那覇の
+  - z14 のタイル 1 枚の地物数をレイヤ別（`transportation`・`building`・`water`・`landuse`・`poi`・`place`）に数え、
+    前回より 20% を超えて増減したら止まる（前回 50 未満のレイヤは揺れが大きいので見ない）。
+    前回の数は R2 のメタデータ `feature-stats` に入れてあり、直前の版の退避・戻しでも一緒に動く
+  - z10 のタイルの `place` に都市名（「札幌市」「東京都」など）が日本語で出ていなければ止まる
+
+  閾値（`CHECK_MAX_CHANGE`・`CHECK_MIN_COUNT`）は仮。数週分の実測で週ごとの自然な変動幅を見て決め直す。
+  意図した変化（Planetiler の更新など）で止まったら `force` で解除する
 - **直前の版を 1 つ残す。** R2 にはバージョニングが無いので、上書きの前に今の版を `_previous/<key>` へ R2 内でコピーする
   （OSM・国土地理院・Mapterhorn の `planet-japan`）。壊れた版を公開してしまったら、Actions の「直前の版に戻す」
   （`rollback.yml`、`scripts/rollback.sh`）で今の版と入れ替えてパージする。もう一度実行すると戻す前の版に戻る。

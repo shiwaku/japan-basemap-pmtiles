@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 元データが前回と同じでも再生成する／縮小ガードを無視する
+        description: 元データが前回と同じでも再生成する／縮小ガードと公開前の検査を無視する
         type: boolean
         default: false
 

@@ -12,6 +12,7 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 : "${WORK_DIR:=/work/osm}"
 PLANETILER_VERSION=0.10.2
@@ -135,10 +136,18 @@ java "-Xmx${JAVA_XMX}" -jar planetiler.jar \
 pmtiles show openmaptiles-japan.pmtiles | tee show.txt
 grep -qiE 'tile type:.*mvt' show.txt || { log "MVT ではない"; exit 1; }
 
+# 主要都市のタイルの地物数を前回と比べ、都市名が日本語で出ているかを見る（issue #5）。
+# 前回の統計は R2 のメタデータ feature-stats（今回の分も同じ名前で付けて上げる）
+log "公開前の検査"
+if ! python3 "$SCRIPT_DIR/check-osm.py" openmaptiles-japan.pmtiles "$(r2_meta "$KEY" feature-stats)" >stats.json; then
+  log "検査で止めた（意図した変化なら FORCE=true で再実行）"
+  [[ "${FORCE:-false}" == "true" ]] || exit 1
+fi
+
 guard_size openmaptiles-japan.pmtiles "$KEY"
 r2_upload openmaptiles-japan.pmtiles "$KEY" \
-  "$(jq -cn --arg u "$PBF_URL" --arg m "$src_modified" --arg v "$PLANETILER_VERSION" \
-    '{"source-url":$u,"source-last-modified":$m,"planetiler-version":$v}')"
+  "$(jq -cn --arg u "$PBF_URL" --arg m "$src_modified" --arg v "$PLANETILER_VERSION" --arg s "$(cat stats.json)" \
+    '{"source-url":$u,"source-last-modified":$m,"planetiler-version":$v,"feature-stats":$s}')"
 purge_cache "$KEY"
 
 gh_output updated true
