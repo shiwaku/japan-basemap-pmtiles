@@ -1,0 +1,21 @@
+{
+  "name": "japan-basemap-mapterhorn-worker",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "description": "R2 の Mapterhorn 日本域を tiles.mapterhorn.com と同じ形の ZXY / TileJSON で配る Cloudflare Worker",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "check": "wrangler deploy --dry-run --outdir dist"
+  },
+  "dependencies": {
+    "pmtiles": "^4.5.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261001.1",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "japan-basemap-mapterhorn",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+
+  // 本家の tiles.mapterhorn.com と同じく、サブドメインのルートに {z}/{x}/{y}.webp と tilejson.json を置く。
+  // shi-works.com 本体（R2 のカスタムドメイン）と tiles.shi-works.com（dem2tiles の Worker）には触らない
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "mapterhorn.shi-works.com", "custom_domain": true }],
+
+  // mirror-mapterhorn.sh が pmtiles/mapterhorn/ に置く planet-japan と 6-x-y を読む
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "shi-works" }]
+}

@@ -75,7 +75,7 @@ jobs:
         run: |
           echo "- \`$FILE\`: ${{ steps.mirror.outcome }}（${{ steps.mirror.outputs.size || '-' }} bytes）" >>"$GITHUB_STEP_SUMMARY"
 
-  # tiles.shi-works.com/mapterhorn/... はファイル名と URL が対応しないので、最後にまとめて消す
+  # mapterhorn.shi-works.com/{z}/{x}/{y}.webp（worker/）はファイル名と URL が対応しないので、最後にホストごとまとめて消す
   purge:
     needs: [plan, mirror]
     if: ${{ !cancelled() && needs.plan.outputs.files != '[]' }}
@@ -91,4 +91,4 @@ jobs:
           # lib.sh は R2_ACCOUNT_ID を要求するだけで、ここでは R2 に触らない
           # shellcheck disable=SC1091
           source scripts/lib.sh
-          purge_prefixes "tiles.shi-works.com/mapterhorn"
+          purge_prefixes "mapterhorn.shi-works.com/"

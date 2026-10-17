@@ -39,8 +39,8 @@ r2_copy "$TMP" "$PREV"
 aws s3 rm "s3://$R2_BUCKET/$TMP" --endpoint-url "$R2_ENDPOINT" --only-show-errors
 
 if [[ "$1" == planet-japan ]]; then
-  # tiles.shi-works.com/mapterhorn/... はファイル名と URL が対応しないのでまとめて消す（mapterhorn.yml と同じ）
-  purge_prefixes "shi-works.com/$KEY" "tiles.shi-works.com/mapterhorn"
+  # mapterhorn.shi-works.com（worker/）はファイル名と URL が対応しないのでホストごと消す（mapterhorn.yml と同じ）
+  purge_prefixes "shi-works.com/$KEY" "mapterhorn.shi-works.com/"
 else
   purge_cache "$KEY"
 fi

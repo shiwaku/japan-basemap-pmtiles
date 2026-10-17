@@ -1,0 +1,4 @@
+# 公開から 7 日未満のバージョンは入れない（サプライチェーン攻撃対策）
+minimumReleaseAge: 10080
+# 依存のインストールスクリプトは実行しない（esbuild は @esbuild/<platform> の同梱バイナリで動く）
+onlyBuiltDependencies: []
