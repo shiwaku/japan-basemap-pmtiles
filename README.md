@@ -91,10 +91,25 @@ OpenFreeMap の [Bright](https://openfreemap.org/)（OSM Bright 系）をもと�
 cd style
 pnpm install
 pnpm build        # openmaptiles-japan.json を作り直す（CI は pnpm check で差分が無いことを確かめる）
-pnpm dev          # 確認用ビューア http://localhost:5173/ 。?local を付けると ../work/osm/openmaptiles-japan.pmtiles を表示
+pnpm dev          # ビューア http://localhost:5173/ 。?local を付けると ../work/osm/openmaptiles-japan.pmtiles を表示
 ```
 
 `territories.json` は `tools/make_territories.py`（shapely）で OSM の海岸線から作る（手順はスクリプトの先頭）。
+
+## ビューア
+
+<https://shiwaku.github.io/japan-basemap-tile-pipeline/>
+
+R2 のタイルを重ねて見るページ（`style/index.html`・`style/src/main.ts`）。main の `style/` が変わると
+`pages.yml` がビルドして GitHub Pages に出す。タイルはどれも R2 の PMTiles をブラウザから直接読む。
+
+- 背景地図を OSM（このリポジトリのスタイル）と国土地理院（配信元の標準地図スタイル `vendor/gsi-std.json` の参照先を R2 に替えたもの）で切り替える
+- Mapterhorn の陰影と 3D 地形を重ねる。本家の [PMTiles の例](https://github.com/mapterhorn/mapterhorn/tree/main/website/examples/pmtiles)と同じく、
+  独自スキーム `mapterhorn://` の中で z12 以下は `planet-japan`、z13 以上は `6-x-y` を選ぶ。読む区画の一覧は `src/main.ts` の `BUNDLES`
+  （上流で区画が増えたら足す）
+- 状態は URL に残る: `?base=osm|gsi`、`&hillshade=0`（陰影なし）、`&terrain=1`（3D）、`#map=ズーム/緯度/経度/方位/傾き`
+- `vendor/gsi-std.json` は [gsi-cyberjapan/optimal_bvmap](https://github.com/gsi-cyberjapan/optimal_bvmap) の `style/std.json`（2ce7dcf、2025-09-03）の写し。
+  フォントとアイコンは配信元（gsi-cyberjapan.github.io）を参照する
 
 ## 仕組み
 
