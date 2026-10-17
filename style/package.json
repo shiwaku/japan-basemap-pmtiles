@@ -8,7 +8,8 @@
     "check": "tsx build-style.ts --check",
     "validate": "gl-style-validate openmaptiles-japan.json",
     "typecheck": "tsc --noEmit",
-    "dev": "vite"
+    "dev": "vite",
+    "build:viewer": "vite build"
   },
   "devDependencies": {
     "@maplibre/maplibre-gl-style-spec": "^26.4.4",

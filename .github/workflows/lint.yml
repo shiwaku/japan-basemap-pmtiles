@@ -32,7 +32,7 @@ jobs:
           tar -xzf "$tgz" actionlint
           ./actionlint -color
 
-  # スタイル（style/）: 型チェック、生成済み JSON が build-style.ts の出力と一致するか、スタイル仕様の検証
+  # スタイル（style/）: 型チェック、生成済み JSON が build-style.ts の出力と一致するか、スタイル仕様の検証、ビューアのビルド
   style:
     runs-on: ubuntu-24.04
     defaults:
@@ -55,6 +55,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm check
       - run: pnpm validate
+      - run: pnpm build:viewer
 
   # Mapterhorn の Worker（worker/）: 型チェックとバンドル（wrangler deploy --dry-run）
   worker:

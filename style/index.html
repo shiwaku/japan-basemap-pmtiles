@@ -3,25 +3,87 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpenMapTiles Japan</title>
+    <title>Japan Basemap</title>
+    <meta name="description" content="R2 に置いた日本域の OSM・国土地理院・Mapterhorn のタイルを重ねて見るビューア" />
     <style>
-      html, body, #map { margin: 0; height: 100%; }
-      #info { position: absolute; top: 8px; left: 8px; z-index: 1; padding: 6px 10px; background: rgba(255,255,255,.9);
-        font: 13px/1.5 sans-serif; border-radius: 4px; }
-      #info a { margin-right: 8px; }
+      :root {
+        --bar: #1f2a36;
+        --bar-text: #e8edf2;
+        --bar-muted: #9fb0c0;
+        --panel: rgba(255, 255, 255, 0.96);
+        --text: #1f2a36;
+        --muted: #5b6876;
+        --on: #1f2a36;
+        --on-text: #ffffff;
+        --shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #dfe6ec; color: var(--text);
+        font: 14px/1.5 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+      #map { position: absolute; inset: 48px 0 0 0; }
+
+      header { position: absolute; inset: 0 0 auto 0; height: 48px; z-index: 2; display: flex; align-items: center;
+        gap: 16px; padding: 0 16px; background: var(--bar); color: var(--bar-text); }
+      header h1 { margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap; }
+      header h1 span { margin-left: 8px; color: var(--bar-muted); font-size: 12px; font-weight: 400; }
+      header nav { display: flex; gap: 4px; margin-left: auto; overflow-x: auto; scrollbar-width: none; }
+      header nav a { padding: 4px 8px; border-radius: 4px; color: var(--bar-text); text-decoration: none; font-size: 13px;
+        white-space: nowrap; }
+      header nav a:hover { background: rgba(255, 255, 255, 0.12); }
+      header .repo { color: var(--bar-muted); font-size: 12px; text-decoration: none; white-space: nowrap; }
+      header .repo:hover { color: var(--bar-text); }
+
+      .switch { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 2; display: flex;
+        gap: 4px; padding: 4px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
+      .switch button, .toggles button { border: 0; cursor: pointer; font: inherit; color: var(--muted); background: transparent; }
+      .switch button { padding: 8px 20px; border-radius: 7px; font-weight: 600; white-space: nowrap; }
+      .switch button[aria-pressed="true"] { background: var(--on); color: var(--on-text); }
+      .switch button:not([aria-pressed="true"]):hover { color: var(--text); }
+
+      .toggles { position: absolute; right: 10px; top: 58px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
+      .toggles button { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px;
+        background: var(--panel); box-shadow: var(--shadow); font-size: 13px; }
+      .toggles button::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); }
+      .toggles button[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+      .toggles button[aria-pressed="true"]::before { background: var(--on); border-color: var(--on); }
+
+      .maplibregl-ctrl-bottom-right { bottom: 0; }
+      .maplibregl-ctrl-attrib { font-size: 11px; }
+
+      @media (max-width: 640px) {
+        header h1 span, header .repo { display: none; }
+        .switch { bottom: 36px; }
+        .switch button { padding: 8px 14px; }
+      }
     </style>
   </head>
   <body>
-    <div id="info">
-      <a href="#13/37.242/131.866">竹島</a>
-      <a href="#10/44.05/146.0">国後島</a>
-      <a href="#10/45.1/147.8">択捉島</a>
-      <a href="#11/43.6/146.0">歯舞・色丹</a>
-      <a href="#7/44.2/146.5">北方領土</a>
-      <a href="#14/35.681/139.767">東京</a>
-      <span id="src"></span>
-    </div>
+    <header>
+      <h1>Japan Basemap<span>OSM・国土地理院・Mapterhorn</span></h1>
+      <nav aria-label="移動">
+        <a href="#map=14/35.681/139.767">東京</a>
+        <a href="#map=12/35.36/138.73">富士山</a>
+        <a href="#map=7/44.2/146.5">北方領土</a>
+        <a href="#map=10/44.05/146.0">国後島</a>
+        <a href="#map=10/45.1/147.8">択捉島</a>
+        <a href="#map=11/43.6/146.0">歯舞・色丹</a>
+        <a href="#map=13/37.242/131.866">竹島</a>
+      </nav>
+      <a class="repo" href="https://github.com/shiwaku/japan-basemap-tile-pipeline">GitHub</a>
+    </header>
+
     <div id="map"></div>
+
+    <div class="switch" role="group" aria-label="背景地図">
+      <button type="button" data-base="osm" aria-pressed="true">OSM</button>
+      <button type="button" data-base="gsi" aria-pressed="false">国土地理院</button>
+    </div>
+
+    <div class="toggles">
+      <button type="button" id="hillshade" aria-pressed="true">陰影</button>
+      <button type="button" id="terrain" aria-pressed="false">3D 地形</button>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
