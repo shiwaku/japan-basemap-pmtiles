@@ -14,14 +14,14 @@ GitHub Actions で週1回更新し、Cloudflare R2 から PMTiles と ZXY で配
 R2 バケット `shi-works` のキー設計（第1階層＝アクセス方法）に従い `pmtiles/` 配下に置く。
 同じキーに上書きするので URL は変わらない。
 
-| データ | PMTiles（`pmtiles://`） | ZXY（Worker `dem2tiles-tiles`） |
+| データ | PMTiles（`pmtiles://`） | ZXY |
 |---|---|---|
 | OSM | `https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles` | `https://tiles.shi-works.com/osm/openmaptiles-japan/{z}/{x}/{y}.pbf` |
 | 国土地理院 | `https://shi-works.com/pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles` | `https://tiles.shi-works.com/gsi/optimal_bvmap/optimal_bvmap-v1/{z}/{x}/{y}.pbf` |
+| Mapterhorn | `https://shi-works.com/pmtiles/mapterhorn/planet-japan.pmtiles`（z0–12）＋ `…/mapterhorn/6-{x}-{y}.pmtiles`（z13+） | `https://mapterhorn.shi-works.com/{z}/{x}/{y}.webp` |
 
-| Mapterhorn | `https://shi-works.com/pmtiles/mapterhorn/planet-japan.pmtiles`（z0–12）＋ `…/mapterhorn/6-{x}-{y}.pmtiles`（z13+） | `https://tiles.shi-works.com/mapterhorn/{z}/{x}/{y}.webp` |
-
-TileJSON は ZXY の `/{z}/{x}/{y}.pbf` を `.json` に替えた URL。
+OSM・国土地理院の ZXY は dem2tiles の Worker `dem2tiles-tiles` が配り、TileJSON は `/{z}/{x}/{y}.pbf` を `.json` に替えた URL。
+Mapterhorn の ZXY はこのリポジトリの [`worker/`](worker/) が配り、TileJSON は `https://mapterhorn.shi-works.com/tilejson.json`。
 
 ```js
 // MapLibre GL JS
@@ -30,12 +30,17 @@ TileJSON は ZXY の `/{z}/{x}/{y}.pbf` を `.json` に替えた URL。
 { type: 'vector', url: 'https://tiles.shi-works.com/osm/openmaptiles-japan.json' }
 ```
 
-Mapterhorn は `tiles.mapterhorn.com` と同じ使い方になる（ズームによるアーカイブの振り分けは Worker が行う。
-[dem2tiles の worker](https://github.com/shiwaku/dem2tiles/tree/main/worker)）。日本の外は 404。
+Mapterhorn は本家の `tiles.mapterhorn.com` とホスト名だけが違う。URL の形（`/{z}/{x}/{y}.webp`・`/tilejson.json`）と
+TileJSON の項目を本家に合わせてあり、ズームによるアーカイブの振り分けは Worker が行う。日本の外は 404。
 
 ```js
-{ type: 'raster-dem', tiles: ['https://tiles.shi-works.com/mapterhorn/{z}/{x}/{y}.webp'], encoding: 'terrarium', tileSize: 512, maxzoom: 16 }
+{ type: 'raster-dem', tiles: ['https://mapterhorn.shi-works.com/{z}/{x}/{y}.webp'], encoding: 'terrarium', tileSize: 512, maxzoom: 16 }
+// または
+{ type: 'raster-dem', url: 'https://mapterhorn.shi-works.com/tilejson.json' }
 ```
+
+表示の確認は本家のビューアに TileJSON を渡せばよい:
+<https://mapterhorn.com/viewer/#url=https://mapterhorn.shi-works.com/tilejson.json>
 
 OpenMapTiles スキーマなので、OSM Bright・Positron・Dark Matter などの OpenMapTiles 系スタイルの
 `sources.openmaptiles` をこの URL に差し替えれば使える（glyphs・sprite は別途用意する）。
@@ -104,7 +109,8 @@ GitHub Actions（週1）
 
 Cloudflare
   ├─ shi-works.com        R2 カスタムドメイン（Range リクエストで pmtiles:// を読む）
-  └─ tiles.shi-works.com  Worker dem2tiles-tiles（PMTiles → ZXY、Cache API）
+  ├─ tiles.shi-works.com       Worker dem2tiles-tiles（OSM・国土地理院の PMTiles → ZXY、Cache API）
+  └─ mapterhorn.shi-works.com  Worker japan-basemap-mapterhorn（worker/。Mapterhorn を本家と同じ形の ZXY で、Cache API）
 ```
 
 - **差し替えは同じキーへの上書き。** マルチパートアップロードは完了時に一括で差し替わるので、
@@ -143,7 +149,7 @@ aws s3api head-object --bucket shi-works --key pmtiles/osm/openmaptiles-japan.pm
 - `plan` ジョブが `download_urls.json` の md5 と R2 のメタデータ `source-md5` を比べ、変わったファイルだけ `mirror` に回す
 - サブピラミッドは最大 66GB でランナーのディスクに載らないため、**R2 の一時キー `_staging/…` へストリームで流し込み**、
   md5・サイズが上流と一致したら本番キーへ R2 内でコピーする。壊れた写しで本番を上書きしない
-- 1 ファイル 1 ジョブ（同時 4 本）。最後に `tiles.shi-works.com/mapterhorn` をパージする
+- 1 ファイル 1 ジョブ（同時 4 本）。最後に `mapterhorn.shi-works.com` をパージする
 - ファイル名は上流と同じにしてあるので、後から[公式ミラー](https://github.com/mapterhorn/mapterhorn/blob/main/distribution/mirrors.json)に登録できる
 
 手動実行は Actions の各ワークフローから `Run workflow`（`force` で強制再生成）。
@@ -168,6 +174,27 @@ gh secret set CLOUDFLARE_API_TOKEN --env prod
 ```
 
 `CLOUDFLARE_API_TOKEN` が無い場合はパージを省略する（タイルは Worker のキャッシュ期限 1 日で入れ替わる）。
+
+### Mapterhorn の Worker（`worker/`）
+
+`mapterhorn.shi-works.com` に Custom Domain として割り当てる（`wrangler.jsonc`）。R2 の `shi-works` を読むだけで、
+書き込みはしない。コードを変えたときだけ手でデプロイする（ワークフローからはデプロイしない）。
+
+```bash
+cd worker
+pnpm install
+pnpm typecheck && pnpm check   # check は wrangler deploy --dry-run
+pnpm exec wrangler login       # 初回のみ
+pnpm deploy
+```
+
+手元で試すときは、小さいアーカイブを手元の R2 に入れて `pnpm dev` で動かす（`--local`。本番のバケットには触らない）。
+
+```bash
+pmtiles extract https://shi-works.com/pmtiles/mapterhorn/planet-japan.pmtiles planet-japan.pmtiles --maxzoom=7
+pnpm exec wrangler r2 object put shi-works/pmtiles/mapterhorn/planet-japan.pmtiles --file planet-japan.pmtiles --local
+pnpm dev   # http://127.0.0.1:8787/tilejson.json、http://127.0.0.1:8787/7/113/50.webp
+```
 
 ## ローカルで試す
 
