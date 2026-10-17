@@ -1,12 +1,12 @@
 # japan-basemap-tile-pipeline
 
 日本域の背景地図タイル（OSM のベクトルタイル・国土地理院 最適化ベクトルタイル・Mapterhorn の標高タイル）を
-GitHub Actions で週1回更新し、Cloudflare R2 から PMTiles と ZXY で配信する。
+GitHub Actions で定期的に（OSM・Mapterhorn は週1回、国土地理院は月2回）更新し、Cloudflare R2 から PMTiles と ZXY で配信する。
 
 | データ | 元 | 生成 | 更新 |
 |---|---|---|---|
 | OSM（OpenMapTiles スキーマ、z0–14） | Geofabrik `asia/japan-latest.osm.pbf` ＋ 北方領土・竹島（隣国の抽出から切り出し） | osmium で結合 → Planetiler 0.10.2 | 毎週月曜 03:00 JST に生成 |
-| 国土地理院 最適化ベクトルタイル（z4–16） | `optimal_bvmap-v1.pmtiles` | そのままミラー | 毎週水曜 03:00 JST に確認し、配信元の ETag が変わったときだけ取り直す |
+| 国土地理院 最適化ベクトルタイル（z4–16） | `optimal_bvmap-v1.pmtiles` | そのままミラー | 毎月 2 日・16 日 03:00 JST に確認し、配信元の ETag が変わったときだけ取り直す（配信元の更新は四半期ごと） |
 | [Mapterhorn](https://github.com/mapterhorn/mapterhorn) 標高タイル（Terrarium・512px・WebP、z0–16） | `download.mapterhorn.com` | z0–12 は `planet.pmtiles` から日本を切り出し、z13+ は日本域の `6-x-y.pmtiles` をそのままミラー | 毎週木曜 03:00 JST に確認し、md5 が変わったファイルだけ取り直す |
 
 ## 配信 URL
@@ -99,7 +99,7 @@ pnpm dev          # 確認用ビューア http://localhost:5173/ 。?local を�
 ## 仕組み
 
 ```
-GitHub Actions（週1）
+GitHub Actions（OSM・Mapterhorn は週1、国土地理院は月2回）
   ├─ osm-openmaptiles.yml
   │    Geofabrik の Last-Modified（japan と補う地域）と Planetiler のバージョンを R2 のメタデータと比較
   │    → 変わっていれば pbf 取得 → 補う地域を切り出して結合 → Planetiler → pmtiles show・主要都市のタイルで検査 → R2 に上書き → キャッシュをパージ
