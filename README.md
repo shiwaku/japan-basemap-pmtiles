@@ -39,7 +39,7 @@ Mapterhorn の TileJSON は `https://mapterhorn.shi-works.com/tilejson.json`。
 
 OpenMapTiles スキーマなので、OSM Bright・Positron・Dark Matter などの OpenMapTiles 系スタイルの
 `sources.openmaptiles` をこの URL に差し替えれば使える（glyphs・sprite は別途用意する）。
-北方領土・竹島の地名まで日本の地名で出すには、このリポジトリの [スタイル](#スタイル) を使う。
+北方領土・竹島・尖閣諸島の地名まで日本の地名で出すには、このリポジトリの [スタイル](#スタイル) を使う。
 
 ### Mapterhorn
 
@@ -58,15 +58,17 @@ TileJSON の項目を本家に合わせてある。日本の外は 404。
 PMTiles で直接読むときは、z12 以下を `planet-japan`、z13 以上をそのタイルを含む z6 タイルの `6-x-y` から読む
 （本家の [PMTiles の例](https://github.com/mapterhorn/mapterhorn/tree/main/website/examples/pmtiles)と同じ。このリポジトリのビューアの `style/src/main.ts` も参考になる）。
 
-## 領土の表示（北方領土・竹島）
+## 領土の表示（北方領土・竹島・尖閣諸島）
 
-OSM タイルには北方領土・竹島の道路・建物などの地物が入っている。ただし、その地域の名前（ロシア語・韓国語）は消してあり、隣国の航路も除いてある。
-このリポジトリのスタイルを使うと、次の 2 点が加わる。
+日本の領土の表記は外務省が公表する立場に合わせる。OSM タイルには北方領土・竹島・尖閣諸島の道路・建物などの地物が入っている。
+ただし、その範囲の名前（ロシア語・韓国語・中国語や、それとの併記）は消してあり、隣国の航路も除いてある。
+このリポジトリのスタイルを使うと、次の点が加わる。
 
-- 北方領土・竹島に国土地理院の注記（日本の地名）を重ねる
+- 北方領土・竹島・尖閣諸島に国土地理院の注記（日本の地名）を重ねる
 - 国境線を国土地理院の「国の所属界」で描く（z4–7）
+- 「日本海」を国土地理院の注記で出す（z4–6）
 
-ほかの OpenMapTiles 系スタイルで表示すると、北方領土・竹島の地名は出ない。詳しくは [docs/design.md](docs/design.md#領土の表示北方領土竹島)。
+ほかの OpenMapTiles 系スタイルで表示すると、北方領土・竹島・尖閣諸島の地名は出ない。詳しくは [docs/design.md](docs/design.md#領土の表示北方領土竹島尖閣諸島)。
 
 ## スタイル
 
@@ -89,7 +91,7 @@ new maplibregl.Map({ container: 'map', style: 'https://shiwaku.github.io/japan-b
 ```
 
 - 地名・道路名は日本語名（`name:ja`）→ `name` の順
-- 北方領土・竹島の表示は上記のとおり
+- 北方領土・竹島・尖閣諸島の表示は上記のとおり
 - フォント・アイコンは OpenFreeMap のものを参照する
 
 ```bash
