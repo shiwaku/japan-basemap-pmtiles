@@ -162,8 +162,11 @@ OSM は実効支配に基づいて国を分ける（On the Ground 原則）。Ge
 
 ## スタイルとビューアの作り方
 
-- `style/openmaptiles-japan.json` は `vendor/openfreemap-bright.json` を `build-style.ts` で書き換えて作る。手で編集しない
-  （CI は `pnpm check` で差分が無いことを確かめる）
+- `style/openmaptiles-japan.json`（PMTiles 版）と `openmaptiles-japan-zxy.json`（ZXY 版）は、`vendor/openfreemap-bright.json` を
+  `build-style.ts` で書き換えて作る。2 本はタイルの参照先だけが違う。手で編集しない（CI は `pnpm check` で差分が無いことを確かめる）
+- 2 本は `pages.yml` がビューアと一緒に GitHub Pages のルートに置く（`vite.config.ts` の `emit-styles`）。
+  R2 に置かないのは、main へのマージだけで更新でき、R2 へ上げる仕組みが要らないため。GitHub Pages は `Access-Control-Allow-Origin: *` を返すので、ほかのサイトからも読める
+- フォント・アイコンは OpenFreeMap（`tiles.openfreemap.org`）を参照している。困ったことが起きるまでは自前で持たない
 - `territories.json` は `tools/make_territories.py`（shapely）で OSM の海岸線から作る（手順はスクリプトの先頭）
 - ビューア（`style/index.html`・`style/src/main.ts`）は main の `style/` が変わると `pages.yml` がビルドして GitHub Pages に出す
 - ビューアの Mapterhorn は、本家の [PMTiles の例](https://github.com/mapterhorn/mapterhorn/tree/main/website/examples/pmtiles)と同じく、
