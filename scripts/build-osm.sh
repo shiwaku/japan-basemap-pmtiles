@@ -5,8 +5,9 @@
 #   PLANETILER_TMP … Planetiler の一時ディレクトリ（既定 $WORK_DIR/data/tmp）
 #
 # Geofabrik の japan は OSM の実効支配による範囲で、北方領土（ロシア側）と竹島（韓国側）を含まない。
-# その地物を隣国の抽出から切り出して結合する（issue #3）。国境線・国名の表示は OSM のまま変わらないので、
-# 日本の公式見解での表示はスタイル側で行う（docs/design.md「領土の表示」）。
+# その地物を隣国の抽出から切り出して結合する（issue #3）。北方領土・竹島・尖閣諸島の範囲（style/territories.json）では
+# 名前を消す。国境線・国名の表示は OSM のまま変わらないので、日本の公式見解での表示はスタイル側で行う
+# （docs/design.md「領土の表示」）。
 #
 # 元データ（すべての Last-Modified）と Planetiler のバージョンが前回と同じなら何もしない。
 set -euo pipefail
@@ -26,19 +27,25 @@ https://download.geofabrik.de/russia/far-eastern-fed-district-latest.osm.pbf|145
 https://download.geofabrik.de/asia/south-korea-latest.osm.pbf|131.8,37.2,131.95,37.3}"
 # タイルを作る範囲。結合した pbf のヘッダには範囲が残らないので明示する
 : "${OSM_BOUNDS:=122.9,20.4,154.0,45.6}"
+# 名前を消す範囲（北方領土・竹島・尖閣諸島。島の海岸線から 10km）。スタイルが国土地理院の注記を重ねる範囲と同じ
+TERRITORIES="$SCRIPT_DIR/../style/territories.json"
 KEY="${KEY_PREFIX}pmtiles/osm/openmaptiles-japan.pmtiles"
 : "${JAVA_XMX:=10g}"
 
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
-# 補う地域の名前（地名・道路名・店名など）を消す。北方領土はロシア語・竹島は韓国語や韓国の行政名になっており、
+# 名前（地名・道路名・店名など）を消す。北方領土はロシア語、竹島は韓国語や韓国の行政名、尖閣諸島は中国語の名前が入っており、
 # name:ja も日本の地名とは限らないため。地名はスタイルで国土地理院 最適化ベクトルタイルの注記を重ねる（docs/design.md「領土の表示」）。
-#   strip_names <入力 pbf> <出力 pbf>
-# OPL（1 行 1 オブジェクト、タグは "T" で始まる欄にカンマ区切り）にして名前系のキーだけ落とす
-strip_names() {
-  osmium cat -f opl "$1" | awk '
+# OPL（1 行 1 オブジェクト、タグは "T" で始まる欄にカンマ区切り。値の中のカンマは %2c% になる）を読み、名前系のキーだけ落とす。
+# CHANGED_ONLY=1 なら名前を落としたオブジェクトだけを出す。KEEP_ADMIN=1 なら行政界（boundary=administrative）の関係は残す:
+# 範囲に少しでもかかると「日本」「北海道」のような範囲の外の行政区画まで名前が消えるため（タイルでは行政界に名前は付かない）
+NAME_KEYS='^(name|alt_name|old_name|official_name|short_name|int_name|loc_name|reg_name|nat_name|sorting_name)(:|$)'
+drop_name_tags() {
+  awk -v keys="$NAME_KEYS" -v changed_only="${CHANGED_ONLY:-0}" -v keep_admin="${KEEP_ADMIN:-0}" '
     {
+      if (keep_admin && substr($1, 1, 1) == "r" && $0 ~ /(^| )T([^ ]*,)?boundary=administrative(,| |$)/) { if (!changed_only) print; next }
+      dropped = 0
       for (i = 1; i <= NF; i++) {
         if (substr($i, 1, 1) != "T") continue
         n = split(substr($i, 2), tags, ",")
@@ -46,16 +53,48 @@ strip_names() {
         for (j = 1; j <= n; j++) {
           key = tags[j]
           sub(/=.*/, "", key)
-          if (key ~ /^(name|alt_name|old_name|official_name|short_name|int_name|loc_name|reg_name|nat_name|sorting_name)(:|$)/) continue
+          if (key ~ keys) { dropped = 1; continue }
           kept = kept (kept == "" ? "" : ",") tags[j]
         }
         $i = "T" kept
       }
-      print
-    }' | osmium cat -F opl - --overwrite -o "$2"
+      if (dropped || !changed_only) print
+    }'
+}
+
+# 名前が残っているオブジェクトの数。OPL を標準入力から読む。KEEP_ADMIN=1 なら行政界の関係は数えない
+count_names() {
+  if [[ "${KEEP_ADMIN:-0}" == 1 ]]; then grep -vE '^r.*( T|,)boundary=administrative(,| |$)'; else cat; fi |
+    grep -cE '(^| )T([^ ]*,)?(name|alt_name|old_name|official_name)(:[^=,]*)?=' || true
+}
+
+# 補う地域の抽出の名前をすべて消す。範囲（TERRITORIES）より広く切り出しているので、範囲の外にはみ出た分も消す
+#   strip_names <入力 pbf> <出力 pbf>
+strip_names() {
+  osmium cat -f opl "$1" | drop_name_tags | osmium cat -F opl - --overwrite -o "$2"
   local left
-  left=$(osmium cat -f opl "$2" | grep -cE '(^| )T([^ ]*,)?(name|alt_name|old_name|official_name)(:[^=,]*)?=' || true)
+  left=$(osmium cat -f opl "$2" | count_names)
   ((left == 0)) || { log "名前が消えていない: $left 件"; exit 1; }
+}
+
+# 結合した pbf のうち、範囲（TERRITORIES）に入る地物の名前を消す。補う地域の抽出だけでなく、japan の抽出から入るもの
+# （尖閣諸島の地物、範囲にかかる隣国の保護区など。両方の抽出にある同じ版のオブジェクトは、結合で名前のある japan 側が残りうる）にも効かせる。
+#   strip_territory_names <入力 pbf> <出力 pbf>
+strip_territory_names() {
+  local area=data/sources/territories.osm.pbf fix=data/sources/territories-fix.osc.gz
+  # simple: 範囲の中にあるノード、それを 1 つでも含む道、それらを含む関係を取り出す
+  osmium extract --strategy=simple -p "$TERRITORIES" --overwrite -o "$area" "$1"
+  # 版を 1 つ上げて変更ファイルにし、apply-changes で差し替える。同じ版のまま osmium merge で重ねると、
+  # どちらが残るかが決まらない（2026-10 の試験では元の名前のある方が残った）
+  osmium cat -f opl "$area" | CHANGED_ONLY=1 KEEP_ADMIN=1 drop_name_tags |
+    awk '{ $2 = "v" (substr($2, 2) + 1); print }' | osmium cat -F opl - --overwrite -o "$fix"
+  log "範囲の名前を消す: $(osmium cat -f opl "$fix" | grep -c . || true) オブジェクト"
+  osmium apply-changes --overwrite -o "$2" "$1" "$fix"
+  osmium extract --strategy=simple -p "$TERRITORIES" --overwrite -o "$area" "$2"
+  local left
+  left=$(osmium cat -f opl "$area" | KEEP_ADMIN=1 count_names)
+  ((left == 0)) || { log "範囲に名前が残っている: $left 件"; exit 1; }
+  rm "$area" "$fix"
 }
 
 # 補う地域の航路（route=ferry）を除く。切り出しは bbox にかかる way を丸ごと残すので、
@@ -71,11 +110,12 @@ drop_ferries() {
 last_modified() { curl -fsSIL "$1" | tr -d '\r' | awk -F': ' 'tolower($1)=="last-modified"{v=$2} END{print v}'; }
 
 read -ra extras <<<"$EXTRA_SOURCES"
-# 前回との比較用。補う地域の URL・bbox を変えたときも作り直す
+# 前回との比較用。補う地域の URL・bbox や名前を消す範囲を変えたときも作り直す
 src_modified=$(last_modified "$PBF_URL")
 for e in "${extras[@]}"; do
   src_modified+="; $e $(last_modified "${e%%|*}")"
 done
+src_modified+="; territories $(sha256sum "$TERRITORIES" | cut -c1-12)"
 log "元データ: $src_modified"
 prev_modified=$(r2_meta "$KEY" source-last-modified)
 prev_planetiler=$(r2_meta "$KEY" planetiler-version)
@@ -114,12 +154,14 @@ if ((${#extras[@]})); then
     rm "data/sources/extra-$i.noferry.osm.pbf"
     parts+=("data/sources/extra-$i.clip.osm.pbf")
   done
-  # 両方の抽出に入っている同じ版のオブジェクト（境界線など）は 1 つにまとまる。
-  # 同じ版なら先に渡した japan 側（名前を消していない方）が残る
+  # 両方の抽出に入っている同じ版のオブジェクト（境界線など）は 1 つにまとまる。どちらが残るかは決まらないので、
+  # 範囲の名前は結合の後で strip_territory_names が消す
   osmium merge --overwrite -o data/sources/merged.osm.pbf "${parts[@]}"
   osmium fileinfo -e data/sources/merged.osm.pbf | grep -E 'Number of (nodes|ways|relations):' >&2
   osm_input=data/sources/merged.osm.pbf
 fi
+strip_territory_names "$osm_input" data/sources/input.osm.pbf
+osm_input=data/sources/input.osm.pbf
 
 # --download: Natural Earth・水域ポリゴン・湖の中心線を取得する（OpenMapTiles の低ズームと海に必要）
 # --nodemap-type=sparsearray: array は最大のノード ID（全世界の通し番号）分の領域を取り、約 76GB 要求して

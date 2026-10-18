@@ -1,9 +1,9 @@
 # ローカル実行。既定は DRY_RUN=true（R2 に書かない・パージしない）で、成果物は ./work/<osm|gsi|mapterhorn> に残る
-# （WORK_DIR は渡さず、各スクリプトの既定に任せる。./work の置き方は README「ローカルで試す」）。
+# （WORK_DIR は渡さず、各スクリプトの既定に任せる。./work の置き方は docs/operations.md「作業領域」）。
 #   docker compose run --rm pipeline scripts/build-osm.sh
 #   docker compose run --rm -e PBF_URL=https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf pipeline scripts/build-osm.sh
 #
-# 書き込みまで含めた試験（README「ローカルで試す」）:
+# 書き込みまで含めた試験（docs/operations.md「ローカルで試す」）:
 #   docker compose run --rm pipeline scripts/test.sh local   … ① ローカルの S3 互換サーバー（versitygw）に書く
 #   docker compose run --rm pipeline scripts/test.sh r2      … ② 本物の R2 の _test/ 以下に書いて最後に消す（.env に認証情報）
 services:

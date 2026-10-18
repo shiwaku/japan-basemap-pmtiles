@@ -9,6 +9,8 @@
   （前回の地物数が CHECK_MIN_COUNT 未満のレイヤは揺れが大きいので見ない）
 - 都市名（place レイヤーの name:ja）が期待どおりでなければ終了コード 1（名前を書き換える荒らしの検知）
 - CHECK_CITIES（カンマ区切りのキー）で見る都市を絞れる。四国だけで作る試験では matsuyama にする
+- 北方領土・竹島・尖閣諸島の範囲（style/territories.json）に名前の付いた地物があれば終了コード 1
+  （build-osm.sh が消しているはずの名前が残っていないか。地名はスタイルで国土地理院の注記を重ねる）
 
 タイルは pmtiles コマンドで取り出し、MVT は標準ライブラリだけで読む（Docker イメージとランナーの両方で動かすため）。
 """
@@ -34,6 +36,10 @@ CITIES = [
     ("naha", 127.6792, 26.2124, "那覇市"),
 ]
 STATS_VERSION = 1
+TERRITORIES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "style", "territories.json")
+# 範囲の検査で見るズーム。1 つの多角形でタイルがこの数を超えるズームは見ない（北方領土の z14 など）
+TERRITORY_ZOOMS = [10, 12, 14]
+TERRITORY_MAX_TILES = 400
 
 
 def tile_xy(lon, lat, z):
@@ -114,6 +120,71 @@ def read_layers(tile):
     return layers
 
 
+def feature_vertices(feat):
+    """地物の頂点（タイル内座標、extent 4096）"""
+    for n, v in fields(feat):
+        if n != 4:
+            continue
+        geom, i, x, y, out = packed(v), 0, 0, 0, []
+        while i < len(geom):
+            cmd, count = geom[i] & 7, geom[i] >> 3
+            i += 1
+            if cmd == 7:
+                continue
+            for _ in range(count):
+                x += (geom[i] >> 1) ^ -(geom[i] & 1)
+                y += (geom[i + 1] >> 1) ^ -(geom[i + 1] & 1)
+                i += 2
+                out.append((x, y))
+        return out
+    return []
+
+
+def tile_lonlat(z, x, y, px, py, extent=4096):
+    n = 2**z
+    lon = (x + px / extent) / n * 360 - 180
+    lat = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + py / extent) / n))))
+    return lon, lat
+
+
+def in_ring(lon, lat, ring):
+    inside = False
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
+        if (y1 > lat) != (y2 > lat) and lon < (x2 - x1) * (lat - y1) / (y2 - y1) + x1:
+            inside = not inside
+    return inside
+
+
+def in_polygon(lon, lat, poly):
+    return in_ring(lon, lat, poly[0]) and not any(in_ring(lon, lat, hole) for hole in poly[1:])
+
+
+def check_territories(path):
+    """範囲の中に頂点を持ち、名前の付いた地物を (ズーム, レイヤ, 名前) で返す"""
+    with open(TERRITORIES, encoding="utf-8") as f:
+        polygons = json.load(f)["geometry"]["coordinates"]
+    found = set()
+    for poly in polygons:
+        lons = [p[0] for p in poly[0]]
+        lats = [p[1] for p in poly[0]]
+        for z in TERRITORY_ZOOMS:
+            x0, y0 = tile_xy(min(lons), max(lats), z)
+            x1, y1 = tile_xy(max(lons), min(lats), z)
+            if (x1 - x0 + 1) * (y1 - y0 + 1) > TERRITORY_MAX_TILES:
+                continue
+            for x in range(x0, x1 + 1):
+                for y in range(y0, y1 + 1):
+                    for layer, (feats, keys, values) in read_layers(get_tile(path, z, x, y)).items():
+                        for feat in feats:
+                            tags = feature_tags(feat, keys, values)
+                            name = next((v for k, v in tags.items() if k.startswith("name")), None)
+                            if name is None:
+                                continue
+                            if any(in_polygon(*tile_lonlat(z, x, y, px, py), poly) for px, py in feature_vertices(feat)):
+                                found.add((z, layer, str(name)))
+    return sorted(found)
+
+
 def feature_tags(feat, keys, values):
     for n, v in fields(feat):
         if n == 2:
@@ -140,6 +211,11 @@ def main():
         names = [t.get("name:ja") or t.get("name") for t in (feature_tags(f, keys, values) for f in feats)]
         if want_name not in names:
             problems.append(f"{key}: z10 の place に「{want_name}」が無い（{', '.join(map(str, names[:10]))}）")
+
+    named = check_territories(path)
+    if named:
+        sample = ", ".join(f"z{z} {layer}「{name}」" for z, layer, name in named[:10])
+        problems.append(f"北方領土・竹島・尖閣諸島の範囲に名前の付いた地物が {len(named)} 件ある（{sample}）")
 
     if prev and prev.get("v") == STATS_VERSION and prev.get("layers") == LAYERS:
         for key, *_ in cities:

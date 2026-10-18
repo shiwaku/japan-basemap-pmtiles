@@ -10,8 +10,9 @@
 // 変えるところ:
 // - タイルの参照先をこのリポジトリが R2 に置くタイルにする
 // - 地名・道路名などは日本語名（name:ja）を優先する
-// - 北方領土・竹島は、タイル生成時に OSM の名前を消してある（scripts/build-osm.sh）。
+// - 北方領土・竹島・尖閣諸島は、タイル生成時に OSM の名前を消してある（scripts/build-osm.sh）。
 //   その範囲（territories.json）にだけ国土地理院 最適化ベクトルタイルの注記を重ねる
+// - 「日本海」を国土地理院の注記で出す（OSM の日本海の点は Geofabrik の japan の範囲外でタイルに入らない）
 // - 北方領土の係争線（Natural Earth 由来）を消し、国土地理院の「国の所属界」を重ねる
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -129,6 +130,27 @@ const gsiAnno: SymbolLayerSpecification = {
   },
 };
 
+// 国土地理院の注記の「日本海」（vt_code 344、z4–6 のタイルにある）。見た目は water_name_point_label に合わせる
+const gsiJapanSea: SymbolLayerSpecification = {
+  id: 'gsi_anno_japan_sea',
+  type: 'symbol',
+  source: 'gsi',
+  'source-layer': 'Anno',
+  maxzoom: 7,
+  filter: ['==', ['get', 'vt_text'], '日本海'],
+  layout: {
+    'text-field': ['get', 'vt_text'],
+    'text-font': ['Noto Sans Italic'],
+    'text-letter-spacing': 0.2,
+    'text-size': ['interpolate', ['linear'], ['zoom'], 4, 12, 7, 15],
+  },
+  paint: {
+    'text-color': '#495e91',
+    'text-halo-color': 'rgba(255,255,255,0.7)',
+    'text-halo-width': 1.5,
+  },
+};
+
 const makeStyle = (osmUrl: string, gsiUrl: string): StyleSpecification => ({
   ...base,
   name: 'OpenMapTiles Japan (Bright)',
@@ -152,7 +174,7 @@ const makeStyle = (osmUrl: string, gsiUrl: string): StyleSpecification => ({
         '<a href="https://github.com/gsi-cyberjapan/optimal_bvmap" target="_blank">国土地理院最適化ベクトルタイル</a>',
     },
   },
-  layers: [...layers, gsiAnno],
+  layers: [...layers, gsiJapanSea, gsiAnno],
 });
 
 const check = process.argv.includes('--check');
