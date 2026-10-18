@@ -70,9 +70,24 @@ OSM タイルには北方領土・竹島の道路・建物などの地物が入�
 
 ## スタイル
 
-[`style/openmaptiles-japan.json`](style/openmaptiles-japan.json) は、OpenFreeMap の [Bright](https://openfreemap.org/)（OSM Bright 系）をもとに、このリポジトリのタイル向けに直したもの。
+OpenFreeMap の [Bright](https://openfreemap.org/)（OSM Bright 系）をもとに、このリポジトリのタイル向けに直したもの。
+タイルの参照先だけが違う 2 本を GitHub Pages で配る（main にマージされると更新される）。
 
-- タイルの参照先は R2 の PMTiles（`pmtiles://`）
+| スタイル | タイルの参照先 | URL |
+|---|---|---|
+| PMTiles 版 | R2 の PMTiles（`pmtiles://`）。表示側で pmtiles のプロトコルを登録する | `https://shiwaku.github.io/japan-basemap-tile-pipeline/openmaptiles-japan.json` |
+| ZXY 版 | `tiles.shi-works.com` の TileJSON。そのまま使える | `https://shiwaku.github.io/japan-basemap-tile-pipeline/openmaptiles-japan-zxy.json` |
+
+```js
+// ZXY 版
+new maplibregl.Map({ container: 'map', style: 'https://shiwaku.github.io/japan-basemap-tile-pipeline/openmaptiles-japan-zxy.json' });
+
+// PMTiles 版
+import { Protocol } from 'pmtiles';
+maplibregl.addProtocol('pmtiles', new Protocol().tile);
+new maplibregl.Map({ container: 'map', style: 'https://shiwaku.github.io/japan-basemap-tile-pipeline/openmaptiles-japan.json' });
+```
+
 - 地名・道路名は日本語名（`name:ja`）→ `name` の順
 - 北方領土・竹島の表示は上記のとおり
 - フォント・アイコンは OpenFreeMap のものを参照する
@@ -80,7 +95,7 @@ OSM タイルには北方領土・竹島の道路・建物などの地物が入�
 ```bash
 cd style
 pnpm install
-pnpm build        # openmaptiles-japan.json を作り直す（手で編集しない）
+pnpm build        # openmaptiles-japan.json・openmaptiles-japan-zxy.json を作り直す（手で編集しない）
 pnpm dev          # ビューア http://localhost:5173/ 。?local を付けると ../work/osm/openmaptiles-japan.pmtiles を表示
 ```
 

@@ -1,6 +1,7 @@
-name: ビューアを GitHub Pages に公開
+name: ビューアとスタイルを GitHub Pages に公開
 
-# style/ のビューア（index.html・src/main.ts）を shiwaku.github.io/japan-basemap-tile-pipeline/ に出す。
+# style/ のビューア（index.html・src/main.ts）とスタイル 2 本（openmaptiles-japan.json・openmaptiles-japan-zxy.json）を
+# shiwaku.github.io/japan-basemap-tile-pipeline/ に出す。
 # タイルは R2 を直接読むので、ここで公開するのは HTML・JS・スタイルだけ
 on:
   push:

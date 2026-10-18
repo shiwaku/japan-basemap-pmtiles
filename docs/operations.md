@@ -10,7 +10,7 @@
 | `gsi-optimal-bvmap.yml` | 毎月 2 日・16 日 03:00 JST、手動 | 国土地理院のミラー |
 | `mapterhorn.yml` | 毎週木曜 03:00 JST、手動 | Mapterhorn のミラー |
 | `rollback.yml` | 手動のみ | 直前の版と入れ替える |
-| `pages.yml` | main の `style/` 変更時 | ビューアを GitHub Pages に出す |
+| `pages.yml` | main の `style/` 変更時 | ビューアとスタイルを GitHub Pages に出す |
 | `lint.yml` | push・PR | スクリプトとスタイルの検査 |
 
 - **手動実行**: Actions の各ワークフローから `Run workflow`。`force` で更新判定と公開前の検査を飛ばして作り直す

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsx build-style.ts",
     "check": "tsx build-style.ts --check",
-    "validate": "gl-style-validate openmaptiles-japan.json",
+    "validate": "gl-style-validate openmaptiles-japan.json && gl-style-validate openmaptiles-japan-zxy.json",
     "typecheck": "tsc --noEmit",
     "dev": "vite",
     "build:viewer": "vite build"

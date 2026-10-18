@@ -1,10 +1,14 @@
 // OpenFreeMap の Bright（OSM Bright 系、OpenMapTiles スキーマ）をもとに、このリポジトリのタイル向けのスタイルを作る。
 //
-//   pnpm build   … openmaptiles-japan.json を書き出す
+//   pnpm build   … openmaptiles-japan.json・openmaptiles-japan-zxy.json を書き出す
 //   pnpm check   … 書き出し済みのファイルが最新か確かめる（CI）
 //
+// 2 本はタイルの参照先だけが違う。
+// - openmaptiles-japan.json     … R2 の PMTiles（pmtiles://）。利用側で pmtiles のプロトコル登録が要る
+// - openmaptiles-japan-zxy.json … Worker（tiles.shi-works.com）の TileJSON。そのまま使える
+//
 // 変えるところ:
-// - タイルの参照先をこのリポジトリが R2 に置く PMTiles にする
+// - タイルの参照先をこのリポジトリが R2 に置くタイルにする
 // - 地名・道路名などは日本語名（name:ja）を優先する
 // - 北方領土・竹島は、タイル生成時に OSM の名前を消してある（scripts/build-osm.sh）。
 //   その範囲（territories.json）にだけ国土地理院 最適化ベクトルタイルの注記を重ねる
@@ -21,10 +25,19 @@ import type {
 } from '@maplibre/maplibre-gl-style-spec';
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
-const OUTPUT = here('openmaptiles-japan.json');
 
-const OSM_PMTILES = 'https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles';
-const GSI_PMTILES = 'https://shi-works.com/pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles';
+const OUTPUTS = [
+  {
+    file: 'openmaptiles-japan.json',
+    osm: 'pmtiles://https://shi-works.com/pmtiles/osm/openmaptiles-japan.pmtiles',
+    gsi: 'pmtiles://https://shi-works.com/pmtiles/gsi/optimal_bvmap/optimal_bvmap-v1.pmtiles',
+  },
+  {
+    file: 'openmaptiles-japan-zxy.json',
+    osm: 'https://tiles.shi-works.com/osm/openmaptiles-japan.json',
+    gsi: 'https://tiles.shi-works.com/gsi/optimal_bvmap/optimal_bvmap-v1.json',
+  },
+];
 
 const base = JSON.parse(readFileSync(here('vendor/openfreemap-bright.json'), 'utf8')) as StyleSpecification;
 const territories = JSON.parse(readFileSync(here('territories.json'), 'utf8')) as {
@@ -116,7 +129,7 @@ const gsiAnno: SymbolLayerSpecification = {
   },
 };
 
-const style: StyleSpecification = {
+const makeStyle = (osmUrl: string, gsiUrl: string): StyleSpecification => ({
   ...base,
   name: 'OpenMapTiles Japan (Bright)',
   metadata: {
@@ -127,30 +140,42 @@ const style: StyleSpecification = {
     ...base.sources,
     openmaptiles: {
       type: 'vector',
-      url: `pmtiles://${OSM_PMTILES}`,
+      url: osmUrl,
       attribution:
         '<a href="https://openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> ' +
         '<a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
     },
     gsi: {
       type: 'vector',
-      url: `pmtiles://${GSI_PMTILES}`,
+      url: gsiUrl,
       attribution:
         '<a href="https://github.com/gsi-cyberjapan/optimal_bvmap" target="_blank">国土地理院最適化ベクトルタイル</a>',
     },
   },
   layers: [...layers, gsiAnno],
-};
+});
 
-const text = `${JSON.stringify(style, null, 2)}\n`;
-if (process.argv.includes('--check')) {
-  const current = readFileSync(OUTPUT, 'utf8');
-  if (current !== text) {
-    console.error('openmaptiles-japan.json が古い。pnpm build で作り直してコミットする');
-    process.exit(1);
+const check = process.argv.includes('--check');
+let stale = false;
+for (const { file, osm, gsi } of OUTPUTS) {
+  const style = makeStyle(osm, gsi);
+  const text = `${JSON.stringify(style, null, 2)}
+`;
+  const path = here(file);
+  if (check) {
+    let current = '';
+    try {
+      current = readFileSync(path, 'utf8');
+    } catch {}
+    if (current !== text) {
+      console.error(`${file} が古い。pnpm build で作り直してコミットする`);
+      stale = true;
+    } else {
+      console.log(`${file} は最新`);
+    }
+  } else {
+    writeFileSync(path, text);
+    console.log(`${path} を書き出した（${style.layers.length} レイヤ）`);
   }
-  console.log('openmaptiles-japan.json は最新');
-} else {
-  writeFileSync(OUTPUT, text);
-  console.log(`${OUTPUT} を書き出した（${style.layers.length} レイヤ）`);
 }
+if (stale) process.exit(1);
